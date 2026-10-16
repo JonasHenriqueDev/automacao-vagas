@@ -82,7 +82,7 @@ def test_cabecalhos_de_seguranca_e_cookie_assinado(cliente):
 
 def test_tela_para_revisar_mostra_vaga_acima_do_limite_e_metricas(logado):
     html = logado.get("/").text
-    assert "Desenvolvedor Backend Pleno" in html and "CV (PDF)" in html and "Aplicar" in html
+    assert "Desenvolvedor Backend Pleno" in html and "CV (PDF)" in html and "Marcar como aplicada" in html
     assert "Dev Go Pleno" not in html  # abaixo do limite
     assert "Dev Go Pleno" in logado.get("/?todas=1").text
     assert "acima do limite" in html and "taxa de resposta" in html
@@ -106,14 +106,13 @@ def test_descartar_e_restaurar(logado, painel):
     assert "Desenvolvedor Backend Pleno" in logado.get("/").text
 
 
-def test_aplicar_registra_candidatura_e_redireciona_para_a_vaga(logado, painel):
+def test_marcar_como_aplicada_registra_candidatura_sem_sair_do_painel(logado, painel):
     sv, _ = painel
     t = token(logado)
     with sv.fabrica() as s:
-        v = s.scalars(select(Vaga).where(Vaga.url.like("%/1"))).one()
-        vid, url = v.id, v.url
+        vid = s.scalars(select(Vaga).where(Vaga.url.like("%/1"))).one().id
     r = logado.post(f"/vaga/{vid}/aplicar", data={"csrf": t}, follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == url
+    assert r.status_code == 303 and r.headers["location"] == f"/vaga/{vid}"  # não vai para o site da vaga
     r = logado.post(f"/vaga/{vid}/aplicar", data={"csrf": t}, follow_redirects=False)  # idempotente
     with sv.fabrica() as s:
         apps = s.scalars(select(Aplicacao)).all()
@@ -121,6 +120,17 @@ def test_aplicar_registra_candidatura_e_redireciona_para_a_vaga(logado, painel):
         assert s.get(Vaga, vid).match.status == "aprovado"
     assert "Desenvolvedor Backend Pleno" in logado.get("/candidaturas").text
     assert "Desenvolvedor Backend Pleno" not in logado.get("/").text  # saiu da fila de revisão
+
+
+def test_marcar_como_aplicada_via_htmx_remove_o_card(logado, painel):
+    sv, _ = painel
+    t = token(logado)
+    with sv.fabrica() as s:
+        vid = s.scalars(select(Vaga).where(Vaga.url.like("%/1"))).one().id
+    r = logado.post(f"/vaga/{vid}/aplicar", headers={"X-CSRF-Token": t, "HX-Request": "true"})
+    assert r.status_code == 200 and r.text == ""
+    with sv.fabrica() as s:
+        assert s.scalars(select(Aplicacao)).one().status == "aplicado"
 
 
 def test_atualizar_status_da_candidatura(logado, painel):

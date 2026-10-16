@@ -1,6 +1,8 @@
 """Aba Gerar CV: colar vaga, perguntar sobre as lacunas, gravar no mestre e gerar o PDF."""
 import json
 import shutil
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -239,8 +241,9 @@ def test_llm_indisponivel_cai_para_palavras_e_oferece_tentar_de_novo(fabrica_ser
 
 
 # ------------------------------------------------------------------ «Melhorar com a LLM»
-def painel_melhorar(fabrica_servicos, monkeypatch, resposta):
-    """Painel cuja LLM responde `resposta` (dict) à tarefa de reescrita; guarda os prompts recebidos."""
+def painel_melhorar(fabrica_servicos, monkeypatch, resposta, na_reescrita=None):
+    """Painel cuja LLM responde `resposta` (dict) à tarefa de reescrita; guarda os prompts recebidos.
+    `na_reescrita` (opcional) é chamado quando a LLM recebe a tarefa de reescrita, antes de responder."""
     prompts: list[str] = []
 
     def h(req: httpx.Request) -> httpx.Response:
@@ -248,6 +251,8 @@ def painel_melhorar(fabrica_servicos, monkeypatch, resposta):
         prompts.append(corpo["messages"][1]["content"])
         if "extrai requisitos" in corpo["messages"][0]["content"]:
             return resposta_chat(EXTRACAO)
+        if na_reescrita:
+            na_reescrita()
         return resposta_chat(resposta)
 
     sv = preparar(fabrica_servicos, monkeypatch, h)
@@ -273,6 +278,33 @@ def test_melhorar_devolve_o_texto_sugerido_sem_gravar_nada(fabrica_servicos, mon
         assert "confira se os fatos" in r.text
         assert sv.config.caminho("mestre").read_text(encoding="utf-8") == antes  # só sugere; quem grava é o formulário
     assert "subi uns servicos" in prompts[-1] and "Maria" not in prompts[-1]
+
+
+def test_melhorar_nao_trava_o_painel_enquanto_a_llm_demora(fabrica_servicos, monkeypatch):
+    """Regressão: a chamada síncrona à LLM rodava no event loop e o painel inteiro parava até ela terminar."""
+    chegou, liberar = threading.Event(), threading.Event()
+
+    def llm_lenta():
+        chegou.set()
+        liberar.wait(10)
+
+    _, app, _ = painel_melhorar(fabrica_servicos, monkeypatch, {"texto": "Publicação de serviços Kubernetes."},
+                                na_reescrita=llm_lenta)
+    with TestClient(app, base_url="http://testserver") as c:
+        logar(c)
+        destino = colar(c)
+        resultado = {}
+        t = threading.Thread(target=lambda: resultado.update(r=melhorar(c, destino, "subi servicos no kubernetes")))
+        t.start()
+        try:
+            assert chegou.wait(10), "a requisição de melhorar não chegou à LLM"
+            inicio = time.monotonic()
+            assert c.get("/healthz").status_code == 200  # responde mesmo com a LLM ainda pendente
+            assert time.monotonic() - inicio < 3
+        finally:
+            liberar.set()
+            t.join(15)
+        assert resultado["r"].status_code == 200
 
 
 @pytest.mark.parametrize("sugestao, motivo", [

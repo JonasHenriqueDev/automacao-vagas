@@ -11,7 +11,7 @@ Fases implementadas: **1 (MVP)**, **2 (LLM e CV)** e **3 (painel)**.
   **criação** da vaga (uma vaga antiga que recebeu um comentário hoje continua sendo velha). Duplicadas (mesma URL ou
   mesma empresa + título vindos de outra fonte) são ignoradas.
 - **Painel** (`python -m app servir`): lista por vaga mais nova, com "aberta há X h", botão **Vaga original ↗**,
-  CV, Aplicar e Descartar; candidaturas; configurações; integrações; saúde.
+  CV, Marcar como aplicada (só muda o status, não abre o site) e Descartar; candidaturas; configurações; integrações; saúde.
 - **Execuções ao vivo:** "Rodar agora" abre uma tela com **barra de progresso** e o **log completo** da rodada
   (coleta, filtros, score, chamadas de LLM, CV, Discord), com download do `.log`.
 - **Histórico das LLMs** (Integrações → log completo): cada chamada com provedor, modelo, tarefa, vaga, execução,

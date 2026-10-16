@@ -18,10 +18,7 @@
       {% endif %}
       {% if m.status == 'novo' %}
         {% if cv %}<a class="botao" href="/cv/{{ cv.id }}.pdf" target="_blank" rel="noopener">CV (PDF)</a>{% endif %}
-        <form method="post" action="/vaga/{{ v.id }}/aplicar" target="_blank" rel="noopener"
-              data-recarregar>
-          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="primario">Aplicar ↗</button>
-        </form>
+        <button class="primario" hx-post="/vaga/{{ v.id }}/aplicar" hx-target="#vaga-{{ v.id }}" hx-swap="outerHTML">Marcar como aplicada</button>
         <button class="perigo" hx-post="/vaga/{{ v.id }}/descartar" hx-target="#vaga-{{ v.id }}" hx-swap="outerHTML">Descartar</button>
       {% else %}
         <button hx-post="/vaga/{{ v.id }}/restaurar" hx-target="#vaga-{{ v.id }}" hx-swap="outerHTML">Restaurar</button>

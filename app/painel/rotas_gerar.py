@@ -6,6 +6,7 @@ from collections import OrderedDict
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
@@ -119,7 +120,8 @@ async def gerar(request: Request, vaga_id: int):
         except (ValueError, FileNotFoundError) as e:
             avisar(request, f"Nada foi salvo: {e}")
             return voltar(f"/gerar/{vaga_id}")
-    gerado, resultado = gerar_cv_manual(sv, vaga_id)
+    # chamadas à LLM são síncronas e podem levar minutos: fora do event loop, senão o painel inteiro trava
+    gerado, resultado = await run_in_threadpool(gerar_cv_manual, sv, vaga_id)
     mensagens.append(resultado)
     avisar(request, " ".join(mensagens))
     return voltar(f"/vaga/{vaga_id}" if gerado else f"/gerar/{vaga_id}")
@@ -142,7 +144,9 @@ async def melhorar_texto(request: Request, vaga_id: int):
     nome = " ".join(str(form.get(f"nome_{i}", "")).split())[:60] or str(form.get(f"termo_{i}", ""))[:60]
     ctx = {"request": request, "i": i, "vaga_id": vaga_id, "texto": original, "mensagem": "", "sucesso": False, "erro": False}
     try:
-        ctx["texto"] = melhorar_bullet(sv.rodizio, carregar_mestre(sv.config.caminho("mestre")), sv.pessoais(), nome, original)
+        mestre = carregar_mestre(sv.config.caminho("mestre"))
+        # a LLM é chamada de forma síncrona (até ~90 s por tentativa): fora do event loop para não travar o painel
+        ctx["texto"] = await run_in_threadpool(melhorar_bullet, sv.rodizio, mestre, sv.pessoais(), nome, original)
         ctx.update(mensagem="Sugestão da LLM: confira se os fatos estão corretos, edite à vontade e salve.", sucesso=True)
     except ValueError as e:
         ctx.update(mensagem=str(e), erro=True)

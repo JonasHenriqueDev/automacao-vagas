@@ -114,10 +114,9 @@ def test_rodada_usa_so_o_que_esta_ativo(logado, painel):
 
 
 def test_nenhum_handler_inline_que_a_csp_bloquearia(logado):
-    """Regressão: onsubmit/onclick inline são bloqueados por script-src 'self' (o Aplicar não recarregava)."""
+    """Regressão: onsubmit/onclick inline são bloqueados por script-src 'self'."""
     for rota in ("/", "/curriculo", "/integracoes", "/configuracoes"):
         html = logado.get(rota).text
         assert not re.search(r"\son(submit|click|change|load)=", html), rota
-    assert "data-recarregar" in logado.get("/?todas=1").text or True
     js = logado.get("/static/app.js")
-    assert js.status_code == 200 and "javascript" in js.headers["content-type"] and "data-recarregar" in js.text
+    assert js.status_code == 200 and "javascript" in js.headers["content-type"] and "data-confirmar" in js.text

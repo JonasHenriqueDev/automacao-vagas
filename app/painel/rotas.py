@@ -5,7 +5,6 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -212,14 +211,9 @@ def detalhe(request: Request, vaga_id: int):
                       labels=json.loads(v.labels_json or "[]"))
 
 
-def _url_segura(url: str) -> str | None:
-    p = urlsplit(url)
-    return url if p.scheme in ("http", "https") and p.netloc else None
-
-
 @router.post("/vaga/{vaga_id}/aplicar", dependencies=[Depends(exigir_login), Depends(checar_csrf)])
 def aplicar(request: Request, vaga_id: int):
-    """Marca como aplicada e redireciona para a vaga (o formulário abre em nova aba)."""
+    """Só marca a vaga como aplicada (status 'aplicado'); não abre nem redireciona para o site da vaga."""
     sv = sv_de(request)
     with sv.fabrica() as s:
         v = s.get(Vaga, vaga_id)
@@ -231,8 +225,10 @@ def aplicar(request: Request, vaga_id: int):
             s.add(Aplicacao(vaga_id=v.id, curriculo_id=v.curriculos[-1].id if v.curriculos else None,
                             canal="site", status="aplicado"))
         s.commit()
-        destino = _url_segura(v.url)
-    return voltar(destino or f"/vaga/{vaga_id}")
+    if request.headers.get("hx-request"):
+        return HTMLResponse("")  # a vaga sai da fila de revisão
+    avisar(request, "Vaga marcada como aplicada.")
+    return voltar(f"/vaga/{vaga_id}")
 
 
 @router.post("/vaga/{vaga_id}/descartar", dependencies=[Depends(exigir_login), Depends(checar_csrf)])
