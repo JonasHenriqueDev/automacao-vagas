@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 from pathlib import Path
 
 import httpx
@@ -42,12 +43,14 @@ def fabrica_servicos(tmp_path, monkeypatch):
         monkeypatch.delenv(nome, raising=False)
     pessoais_yaml = tmp_path / "pessoais.yaml"
     pessoais_yaml.write_text(yaml.safe_dump(PESSOAIS, allow_unicode=True), encoding="utf-8")
+    mestre_yaml = tmp_path / "curriculo_mestre.yaml"  # cópia: o painel edita este arquivo, nunca o de exemplo
+    shutil.copy(RAIZ / "data" / "curriculo_mestre.example.yaml", mestre_yaml)
 
     def criar(handler=None, ajustes: dict | None = None) -> Servicos:
         dados = copy.deepcopy(PADRAO)
         dados["caminhos"].update({
             "banco": str(tmp_path / "vagas.db"), "saida": str(tmp_path / "saida"),
-            "mestre": str(RAIZ / "data" / "curriculo_mestre.example.yaml"), "pessoais": str(pessoais_yaml),
+            "mestre": str(mestre_yaml), "pessoais": str(pessoais_yaml),
             "templates_cv": str(RAIZ / "templates_cv"),
         })
         dados["painel"]["cookie_seguro"] = False

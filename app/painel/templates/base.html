@@ -7,6 +7,7 @@
   <title>{% block titulo %}Vagas{% endblock %} · Automação de vagas</title>
   <link rel="stylesheet" href="/static/estilo.css">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
 {% if usuario %}
@@ -14,6 +15,7 @@
   {% set caminho = request.url.path %}
   <a class="item {{ 'ativo' if caminho == '/' or caminho.startswith('/vaga') }}" href="/">Para revisar</a>
   <a class="item {{ 'ativo' if caminho.startswith('/candidaturas') }}" href="/candidaturas">Candidaturas</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/curriculo') }}" href="/curriculo">Currículo</a>
   <a class="item {{ 'ativo' if caminho.startswith('/execucoes') }}" href="/execucoes">Execuções</a>
   <a class="item {{ 'ativo' if caminho.startswith('/configuracoes') }}" href="/configuracoes">Configurações</a>
   <a class="item {{ 'ativo' if caminho.startswith('/integracoes') }}" href="/integracoes">Integrações</a>

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block titulo %}Currículo mestre{% endblock %}
+{% block conteudo %}
+{# Formulário de ativar/desativar. Passa csrf explicitamente: macros não enxergam o contexto da página. #}
+{% macro alternar(csrf, tipo, ref, ativo, ancora, ref2='', i='', k='') %}
+<form method="post" action="/curriculo/acao" style="display:inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="alternar">
+  <input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="ref" value="{{ ref }}">
+  <input type="hidden" name="ref2" value="{{ ref2 }}"><input type="hidden" name="i" value="{{ i }}">
+  <input type="hidden" name="k" value="{{ k }}"><input type="hidden" name="ancora" value="{{ ancora }}">
+  <button class="{{ '' if ativo else 'primario' }}" title="{{ 'Desativar: some do match e do CV, mas continua salvo' if ativo else 'Ativar' }}">{{ 'Desativar' if ativo else 'Ativar' }}</button>
+</form>
+{% endmacro %}
+{% macro remover(csrf, tipo, ref, ancora, ref2='', i='', k='') %}
+<form method="post" action="/curriculo/acao" style="display:inline" data-confirmar="Remover de vez? (fica um backup em data/backups). Para só esconder do CV, use Desativar.">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="remover">
+  <input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="ref" value="{{ ref }}">
+  <input type="hidden" name="ref2" value="{{ ref2 }}"><input type="hidden" name="i" value="{{ i }}">
+  <input type="hidden" name="k" value="{{ k }}"><input type="hidden" name="ancora" value="{{ ancora }}">
+  <button class="perigo">Remover</button>
+</form>
+{% endmacro %}
+
+<div class="linha" style="margin-bottom:6px">
+  <h1 style="margin:0">Currículo mestre</h1>
+  {% if dados %}
+  <a class="botao" href="/curriculo/previa.pdf?idioma=pt" target="_blank" rel="noopener">Prévia do CV (PT)</a>
+  <a class="botao" href="/curriculo/previa.pdf?idioma=en" target="_blank" rel="noopener">Prévia (EN)</a>
+  {% endif %}
+</div>
+
+{% if not dados %}
+  <div class="card erro">{{ erro_arquivo }}</div>
+{% else %}
+<p class="suave">É a única fonte do CV: a LLM só pode usar o que está <b>ativo</b> aqui. Itens desativados continuam salvos, mas não entram no
+  score nem no PDF. Cada alteração faz um backup datado em <code>data/backups/</code> ({{ n_backups }} guardado(s)) e vale já na próxima rodada.</p>
+<div class="grade">
+  <div class="card metrica"><b>{{ n_exp[0] }}/{{ n_exp[1] }}</b><span>experiências ativas</span></div>
+  <div class="card metrica"><b>{{ n_skills[0] }}/{{ n_skills[1] }}</b><span>skills ativas</span></div>
+  <div class="card metrica"><b>{{ n_cert[0] }}/{{ n_cert[1] }}</b><span>certificações ativas</span></div>
+  <div class="card metrica"><b>{{ n_form[0] }}/{{ n_form[1] }}</b><span>formações ativas</span></div>
+</div>
+
+<h2 id="geral">Dados gerais</h2>
+<form class="card" method="post" action="/curriculo/acao">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="geral_salvar"><input type="hidden" name="ancora" value="geral">
+  <div class="linha">
+    <div><label for="cargo_pt">Cargo-alvo (PT)</label><input id="cargo_pt" name="cargo_pt" value="{{ dados.cargo_alvo.pt }}" style="width:340px" maxlength="150"></div>
+    <div><label for="cargo_en">Cargo-alvo (EN)</label><input id="cargo_en" name="cargo_en" value="{{ dados.cargo_alvo.en }}" style="width:340px" maxlength="150"></div>
+    <div><label for="inicio_carreira">Início da carreira (AAAA-MM)</label><input id="inicio_carreira" name="inicio_carreira" value="{{ dados.inicio_carreira }}" style="width:110px" pattern="\d{4}-(0[1-9]|1[0-2])"></div>
+    <button class="primario">Salvar</button>
+  </div>
+  <div class="suave">O tempo de experiência no resumo do CV é calculado a partir do início da carreira.</div>
+</form>
+
+<h2 id="experiencias">Experiências</h2>
+{% for e in dados.experiencias %}
+{% set ativa = e.get('ativo', True) %}
+<div class="card" id="exp-{{ e.id }}" style="{{ '' if ativa else 'opacity:.6' }}">
+  <div class="linha" style="align-items:center">
+    <div style="flex:1 1 300px">
+      <b>{{ e.empresa }}</b> <span class="chip">{{ e.tipo }}</span> {% if not ativa %}<span class="chip aviso">desativada</span>{% endif %}
+      <div class="suave">{{ e.cargo.pt }} · {{ e.inicio }} → {{ e.fim or 'atual' }}{% if e.local %} · {{ e.local }}{% endif %}</div>
+      {% if e.tecnologias %}<div class="chips">{% for t in e.tecnologias %}<span class="chip">{{ t }}</span>{% endfor %}</div>{% endif %}
+    </div>
+    {{ alternar(csrf, 'experiencia', e.id, ativa, 'exp-' ~ e.id) }}
+    {{ remover(csrf, 'experiencia', e.id, 'experiencias') }}
+  </div>
+
+  <details style="margin-top:8px"><summary>Editar dados da experiência</summary>
+    <form method="post" action="/curriculo/acao">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="experiencia_editar">
+      <input type="hidden" name="ref" value="{{ e.id }}"><input type="hidden" name="ancora" value="exp-{{ e.id }}">
+      <div class="linha">
+        <div><label>Empresa/instituição</label><input name="empresa" value="{{ e.empresa }}" maxlength="120" required></div>
+        <div><label>Cargo (PT)</label><input name="cargo_pt" value="{{ e.cargo.pt }}" maxlength="120" required></div>
+        <div><label>Cargo (EN)</label><input name="cargo_en" value="{{ e.cargo.en }}" maxlength="120"></div>
+        <div><label>Local</label><input name="local" value="{{ e.local }}" maxlength="80"></div>
+        <div><label>Início (AAAA-MM)</label><input name="inicio" value="{{ e.inicio }}" style="width:100px" required></div>
+        <div><label>Fim (vazio = atual)</label><input name="fim" value="{{ e.fim or '' }}" style="width:100px"></div>
+        <div><label>Tipo</label><select name="tipo_exp">{% for t in tipos_exp %}<option {{ 'selected' if t == e.tipo }}>{{ t }}</option>{% endfor %}</select></div>
+      </div>
+      <label>Tecnologias (separadas por vírgula; só estas e as dos bullets podem aparecer nesta experiência no CV)</label>
+      <input name="tecnologias" value="{{ e.tecnologias|join(', ') }}" style="width:100%">
+      <div class="acoes"><button class="primario">Salvar experiência</button></div>
+    </form>
+  </details>
+
+  <h3 style="font-size:.95rem; margin:14px 0 4px">Bullets ({{ e.get('bullets', [])|selectattr('ativo', 'equalto', False)|list|length }} desativado(s) de {{ e.get('bullets', [])|length }})</h3>
+  {% for b in e.get('bullets', []) %}
+  {% set b_ativo = b.get('ativo', True) %}
+  <div style="border-top:1px solid var(--borda); padding:8px 0; {{ '' if b_ativo else 'opacity:.55' }}" id="b-{{ e.id }}-{{ loop.index }}">
+    <div class="linha" style="align-items:flex-start; flex-wrap:nowrap">
+      <div style="flex:1">{{ b.texto }}
+        {% if b.get('tags') %}<div class="chips">{% for t in b.tags %}<span class="chip">{{ t }}</span>{% endfor %}</div>{% endif %}</div>
+      <div class="acoes" style="margin:0">
+        {{ alternar(csrf, 'bullet', e.id, b_ativo, 'exp-' ~ e.id, ref2=b.id) }}
+        {{ remover(csrf, 'bullet', e.id, 'exp-' ~ e.id, ref2=b.id) }}
+      </div>
+    </div>
+    <details><summary>editar</summary>
+      <form method="post" action="/curriculo/acao">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="bullet_editar">
+        <input type="hidden" name="ref" value="{{ e.id }}"><input type="hidden" name="ref2" value="{{ b.id }}"><input type="hidden" name="ancora" value="exp-{{ e.id }}">
+        <textarea name="texto" maxlength="700" style="min-height:70px" required>{{ b.texto }}</textarea>
+        <label>Tags/tecnologias do bullet (vírgula)</label><input name="tags" value="{{ b.get('tags', [])|join(', ') }}" style="width:100%">
+        <div class="acoes"><button class="primario">Salvar bullet</button></div>
+      </form>
+    </details>
+  </div>
+  {% endfor %}
+  <details style="margin-top:8px"><summary>+ Adicionar bullet</summary>
+    <form method="post" action="/curriculo/acao">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="bullet_adicionar">
+      <input type="hidden" name="ref" value="{{ e.id }}"><input type="hidden" name="ancora" value="exp-{{ e.id }}">
+      <label>O que você fez (fatos reais: a LLM não pode inventar além disto)</label>
+      <textarea name="texto" maxlength="700" style="min-height:70px" required></textarea>
+      <label>Tags/tecnologias citadas (vírgula)</label><input name="tags" style="width:100%">
+      <div class="acoes"><button class="primario">Adicionar</button></div>
+    </form>
+  </details>
+</div>
+{% endfor %}
+<details class="card"><summary>+ Adicionar experiência</summary>
+  <form method="post" action="/curriculo/acao">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="experiencia_adicionar"><input type="hidden" name="ancora" value="experiencias">
+    <div class="linha">
+      <div><label>Empresa/instituição</label><input name="empresa" maxlength="120" required></div>
+      <div><label>Cargo (PT)</label><input name="cargo_pt" maxlength="120" required></div>
+      <div><label>Cargo (EN)</label><input name="cargo_en" maxlength="120"></div>
+      <div><label>Local</label><input name="local" maxlength="80"></div>
+      <div><label>Início (AAAA-MM)</label><input name="inicio" style="width:100px" required placeholder="2025-03"></div>
+      <div><label>Fim (vazio = atual)</label><input name="fim" style="width:100px"></div>
+      <div><label>Tipo</label><select name="tipo_exp">{% for t in tipos_exp %}<option>{{ t }}</option>{% endfor %}</select></div>
+    </div>
+    <label>Tecnologias (vírgula)</label><input name="tecnologias" style="width:100%">
+    <div class="acoes"><button class="primario">Adicionar experiência</button> <span class="suave">Depois adicione os bullets: sem bullet ativo ela não entra no CV.</span></div>
+  </form>
+</details>
+
+<h2 id="skills">Competências técnicas</h2>
+{% for cat, skills in categorias.items() %}
+<div class="card" id="cat-{{ loop.index }}">
+  <b>{{ cat }}</b>
+  <table>
+    {% for s in skills %}
+    {% set s_ativo = s.get('ativo', True) %}
+    <tr style="{{ '' if s_ativo else 'opacity:.55' }}">
+      <td style="width:34%"><b>{{ s.nome }}</b> {% if s.get('academico') %}<span class="chip aviso">acadêmico</span>{% endif %}
+        {% if s.get('sinonimos') %}<div class="suave">= {{ s.sinonimos|join(', ') }}</div>{% endif %}</td>
+      <td class="suave" style="white-space:nowrap">nível {{ s.get('nivel', 3) }}/5</td>
+      <td>
+        {{ alternar(csrf, 'skill', s.nome, s_ativo, 'cat-' ~ loop.index) }}
+        {{ remover(csrf, 'skill', s.nome, 'cat-' ~ loop.index) }}
+        <details style="display:inline-block; vertical-align:top"><summary>editar</summary>
+          <form method="post" action="/curriculo/acao">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="skill_editar">
+            <input type="hidden" name="ref" value="{{ s.nome }}"><input type="hidden" name="ancora" value="cat-{{ loop.index }}">
+            <div class="linha">
+              <div><label>Categoria</label><input name="categoria" value="{{ s.get('categoria', '') }}" maxlength="40" required></div>
+              <div><label>Nível (1-5)</label><input name="nivel" type="number" min="1" max="5" value="{{ s.get('nivel', 3) }}" style="width:70px"></div>
+              <div><label><input type="checkbox" name="academico" {{ 'checked' if s.get('academico') }}> só acadêmico (peso menor)</label></div>
+            </div>
+            <label>Sinônimos (vírgula)</label><input name="sinonimos" value="{{ s.get('sinonimos', [])|join(', ') }}" style="width:100%">
+            <div class="acoes"><button class="primario">Salvar</button></div>
+          </form>
+        </details>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+<details class="card"><summary>+ Adicionar competência</summary>
+  <form method="post" action="/curriculo/acao">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="skill_adicionar"><input type="hidden" name="ancora" value="skills">
+    <div class="linha">
+      <div><label>Nome</label><input name="nome" maxlength="60" required></div>
+      <div><label>Categoria existente</label>
+        <select name="categoria">{% for cat in categorias.keys() %}<option>{{ cat }}</option>{% endfor %}</select></div>
+      <div><label>…ou nova categoria</label><input name="categoria_nova" maxlength="40" placeholder="(deixe vazio para usar a ao lado)"></div>
+      <div><label>Nível (1-5)</label><input name="nivel" type="number" min="1" max="5" value="3" style="width:70px"></div>
+    </div>
+    <label>Sinônimos (vírgula; ajudam o match, ex.: «Postgres, PG»)</label><input name="sinonimos" style="width:100%">
+    <label><input type="checkbox" name="academico"> só acadêmico (peso menor no match; nunca vira experiência profissional)</label>
+    <div class="acoes"><button class="primario">Adicionar</button></div>
+  </form>
+</details>
+
+<h2 id="formacao">Formação</h2>
+{% for f in dados.get('formacao', []) %}
+{% set f_ativo = f.get('ativo', True) %}
+<div class="card" style="{{ '' if f_ativo else 'opacity:.6' }}">
+  <div class="linha" style="align-items:center">
+    <div style="flex:1 1 300px"><b>{{ f.instituicao }}</b> {% if not f_ativo %}<span class="chip aviso">desativada</span>{% endif %}
+      <div class="suave">{{ f.curso.pt }} · {{ f.inicio }} → {{ f.fim }}{% if f.local %} · {{ f.local }}{% endif %}</div>
+      {% if f.get('detalhes') %}<div class="suave">{{ f.detalhes.pt }}</div>{% endif %}</div>
+    {{ alternar(csrf, 'formacao', '', f_ativo, 'formacao', i=loop.index0, k=chave_item(f)) }}
+    {{ remover(csrf, 'formacao', '', 'formacao', i=loop.index0, k=chave_item(f)) }}
+  </div>
+  <details><summary>editar</summary>
+    <form method="post" action="/curriculo/acao">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="formacao_editar"><input type="hidden" name="ancora" value="formacao">
+      <input type="hidden" name="i" value="{{ loop.index0 }}"><input type="hidden" name="k" value="{{ chave_item(f) }}">
+      <div class="linha">
+        <div><label>Instituição</label><input name="instituicao" value="{{ f.instituicao }}" required></div>
+        <div><label>Curso (PT)</label><input name="curso_pt" value="{{ f.curso.pt }}" required></div>
+        <div><label>Curso (EN)</label><input name="curso_en" value="{{ f.curso.en }}"></div>
+        <div><label>Local</label><input name="local" value="{{ f.get('local', '') }}"></div>
+        <div><label>Início</label><input name="inicio" value="{{ f.inicio }}" style="width:100px" required></div>
+        <div><label>Fim</label><input name="fim" value="{{ f.fim }}" style="width:100px" required></div>
+      </div>
+      <label>Detalhes (PT)</label><textarea name="detalhes_pt" style="min-height:50px">{{ f.get('detalhes', {}).get('pt', '') }}</textarea>
+      <label>Detalhes (EN)</label><textarea name="detalhes_en" style="min-height:50px">{{ f.get('detalhes', {}).get('en', '') }}</textarea>
+      <div class="acoes"><button class="primario">Salvar</button></div>
+    </form>
+  </details>
+</div>
+{% endfor %}
+<details class="card"><summary>+ Adicionar formação</summary>
+  <form method="post" action="/curriculo/acao">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="formacao_adicionar"><input type="hidden" name="ancora" value="formacao">
+    <div class="linha">
+      <div><label>Instituição</label><input name="instituicao" required></div>
+      <div><label>Curso (PT)</label><input name="curso_pt" required></div>
+      <div><label>Curso (EN)</label><input name="curso_en"></div>
+      <div><label>Local</label><input name="local"></div>
+      <div><label>Início (AAAA-MM)</label><input name="inicio" style="width:100px" required></div>
+      <div><label>Fim (AAAA-MM)</label><input name="fim" style="width:100px" required></div>
+    </div>
+    <label>Detalhes (PT)</label><textarea name="detalhes_pt" style="min-height:50px"></textarea>
+    <label>Detalhes (EN)</label><textarea name="detalhes_en" style="min-height:50px"></textarea>
+    <div class="acoes"><button class="primario">Adicionar</button></div>
+  </form>
+</details>
+
+{% for lista, titulo, itens in [('certificacoes', 'Certificações', dados.get('certificacoes', [])), ('idiomas', 'Idiomas', dados.get('idiomas', []))] %}
+<h2 id="{{ lista }}">{{ titulo }}</h2>
+<div class="card">
+  {% for it in itens %}
+  {% set it_ativo = it.get('ativo', True) %}
+  <div style="border-top:{{ '1px solid var(--borda)' if not loop.first else 'none' }}; padding:8px 0; {{ '' if it_ativo else 'opacity:.55' }}">
+    <div class="linha" style="align-items:center; flex-wrap:nowrap">
+      <div style="flex:1">{{ it.pt }}{% if it.get('en') and it.en != it.pt %}<div class="suave">EN: {{ it.en }}</div>{% endif %}</div>
+      {{ alternar(csrf, lista, '', it_ativo, lista, i=loop.index0, k=chave_item(it)) }}
+      {{ remover(csrf, lista, '', lista, i=loop.index0, k=chave_item(it)) }}
+    </div>
+    <details><summary>editar</summary>
+      <form method="post" action="/curriculo/acao" class="linha">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="item_editar"><input type="hidden" name="ancora" value="{{ lista }}">
+        <input type="hidden" name="lista" value="{{ lista }}"><input type="hidden" name="i" value="{{ loop.index0 }}"><input type="hidden" name="k" value="{{ chave_item(it) }}">
+        <div style="flex:1 1 260px"><label>Português</label><input name="pt" value="{{ it.pt }}" style="width:100%" required></div>
+        <div style="flex:1 1 260px"><label>Inglês</label><input name="en" value="{{ it.get('en', '') }}" style="width:100%"></div>
+        <button class="primario">Salvar</button>
+      </form>
+    </details>
+  </div>
+  {% else %}<span class="suave">Nada cadastrado.</span>{% endfor %}
+  <details style="margin-top:8px"><summary>+ Adicionar</summary>
+    <form method="post" action="/curriculo/acao" class="linha">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="item_adicionar"><input type="hidden" name="ancora" value="{{ lista }}">
+      <input type="hidden" name="lista" value="{{ lista }}">
+      <div style="flex:1 1 260px"><label>Português</label><input name="pt" style="width:100%" required></div>
+      <div style="flex:1 1 260px"><label>Inglês</label><input name="en" style="width:100%"></div>
+      <button class="primario">Adicionar</button>
+    </form>
+  </details>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

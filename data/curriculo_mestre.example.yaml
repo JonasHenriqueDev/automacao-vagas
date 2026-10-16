@@ -165,9 +165,9 @@ formacao:
       en: Academic projects with Java, Spring Boot and Kafka (REST APIs, object-oriented design, layered architecture, design patterns).
 
 certificacoes:
-  - {pt: "PHP do Zero: Criando sistemas com PHP e MySQL na prática", en: "PHP do Zero: building systems with PHP and MySQL"}
+  - {pt: "PHP do Zero: Criando sistemas com PHP e MySQL na prática", en: "PHP do Zero: building systems with PHP and MySQL", ativo: false}
   - {pt: "EF SET English Certificate 56/100 (B2 Upper Intermediate)", en: "EF SET English Certificate 56/100 (B2 Upper Intermediate)"}
-  - {pt: "Certificado de participação, Semana Universitária da Universidade Exemplo 2024", en: "Participation certificate, Universidade Exemplo University Week 2024"}
+  - {pt: "Certificado de participação, Semana Universitária da Universidade Exemplo 2024", en: "Participation certificate, Universidade Exemplo University Week 2024", ativo: false}
 
 idiomas:
   - {pt: "Português: nativo", en: "Portuguese: native"}

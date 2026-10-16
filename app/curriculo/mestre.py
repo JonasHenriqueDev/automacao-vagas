@@ -21,7 +21,14 @@ class Bilingue(BaseModel):
         return (self.en if idioma == "en" and self.en else self.pt).strip()
 
 
+class ItemBilingue(Bilingue):
+    """Certificação ou idioma: texto nos dois idiomas, que pode ser desativado sem apagar."""
+
+    ativo: bool = True
+
+
 class Skill(BaseModel):
+    ativo: bool = True  # desativada: não entra no match nem no CV
     nome: str
     categoria: str = ""
     nivel: int = 3
@@ -39,12 +46,14 @@ class Skill(BaseModel):
 
 class Bullet(BaseModel):
     id: str
+    ativo: bool = True
     texto: str
     tags: list[str] = Field(default_factory=list)
 
 
 class Experiencia(BaseModel):
     id: str
+    ativo: bool = True
     empresa: str
     cargo: Bilingue
     local: str = ""
@@ -57,6 +66,7 @@ class Experiencia(BaseModel):
 
 
 class Formacao(BaseModel):
+    ativo: bool = True
     instituicao: str
     curso: Bilingue
     local: str = ""
@@ -71,9 +81,27 @@ class Mestre(BaseModel):
     resumo_base: Bilingue
     experiencias: list[Experiencia]
     formacao: list[Formacao]
-    certificacoes: list[Bilingue] = Field(default_factory=list)
-    idiomas: list[Bilingue] = Field(default_factory=list)
+    certificacoes: list[ItemBilingue] = Field(default_factory=list)
+    idiomas: list[ItemBilingue] = Field(default_factory=list)
     skills: list[Skill]
+
+    def somente_ativos(self) -> "Mestre":
+        """Visão usada pelo match e pela geração de CV: só o que está ativo. Experiência sem nenhum bullet
+        ativo sai (não há o que dizer sobre ela)."""
+        experiencias = []
+        for e in self.experiencias:
+            if not e.ativo:
+                continue
+            bullets = [b for b in e.bullets if b.ativo]
+            if bullets:
+                experiencias.append(e.model_copy(update={"bullets": bullets}))
+        return self.model_copy(update={
+            "experiencias": experiencias,
+            "formacao": [f for f in self.formacao if f.ativo],
+            "certificacoes": [c for c in self.certificacoes if c.ativo],
+            "idiomas": [i for i in self.idiomas if i.ativo],
+            "skills": [s for s in self.skills if s.ativo],
+        })
 
     # ----- consultas -----
     def experiencia(self, exp_id: str) -> Experiencia | None:

@@ -17,6 +17,7 @@ from ..agendador import Agendador
 from ..pipeline import Servicos
 from .auth import LimiteTentativas, RedirecionarLogin
 from .rotas import router
+from .rotas_curriculo import router as router_curriculo
 from .rotas_execucao import router as router_execucao
 
 # O registro do Windows pode mapear .js para text/plain, e o navegador (nosniff) recusa o script.
@@ -76,4 +77,5 @@ def criar_app(sv: Servicos, com_agendador: bool = True) -> FastAPI:
     app.mount("/static", StaticFiles(directory=AQUI / "static"), name="static")
     app.include_router(router)
     app.include_router(router_execucao)
+    app.include_router(router_curriculo)
     return app

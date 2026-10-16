@@ -68,7 +68,8 @@ class Servicos:
                                    f"Chave de LLM inválida: {p}", f"O provedor foi desativado. {m}"))
 
     def mestre(self) -> Mestre:
-        return carregar_mestre(self.config.caminho("mestre"))
+        """Currículo mestre só com os itens ATIVOS (o que o match e o CV podem usar)."""
+        return carregar_mestre(self.config.caminho("mestre")).somente_ativos()
 
     def pessoais(self) -> Pessoais:
         return carregar_pessoais(self.config.caminho("pessoais"))

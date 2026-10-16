@@ -19,7 +19,7 @@
       {% if m.status == 'novo' %}
         {% if cv %}<a class="botao" href="/cv/{{ cv.id }}.pdf" target="_blank" rel="noopener">CV (PDF)</a>{% endif %}
         <form method="post" action="/vaga/{{ v.id }}/aplicar" target="_blank" rel="noopener"
-              onsubmit="setTimeout(function(){location.reload()}, 900)">
+              data-recarregar>
           <input type="hidden" name="csrf" value="{{ csrf }}"><button class="primario">Aplicar ↗</button>
         </form>
         <button class="perigo" hx-post="/vaga/{{ v.id }}/descartar" hx-target="#vaga-{{ v.id }}" hx-swap="outerHTML">Descartar</button>
