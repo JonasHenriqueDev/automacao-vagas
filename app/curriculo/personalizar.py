@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import date
 
 from pydantic import BaseModel, Field
 
@@ -20,7 +19,8 @@ from .mestre import Mestre, Pessoais
 
 MAX_BULLETS = {"profissional": 5, "bolsa": 3, "monitoria": 2}
 MAX_BULLET_CHARS = 420
-MAX_RESUMO_CHARS = 500
+MAX_TECNOLOGIAS_EXP = 10  # palavras-chave por experiência (linha "Tecnologias")
+MAX_TECNOLOGIAS_TITULO = 4  # espelhamento: cargo | 3-4 tecnologias, como na headline do LinkedIn
 
 
 class ErroPrivacidade(RuntimeError):
@@ -41,6 +41,7 @@ class ExperienciaFinal(BaseModel):
     local: str = ""
     periodo: str
     bullets: list[BulletFinal]
+    tecnologias: list[str] = Field(default_factory=list)
 
 
 class GrupoSkills(BaseModel):
@@ -51,7 +52,6 @@ class GrupoSkills(BaseModel):
 class ConteudoCV(BaseModel):
     idioma: str
     titulo: str
-    resumo: str
     experiencias: list[ExperienciaFinal]
     skills: list[GrupoSkills]
     formacao: list[dict] = Field(default_factory=list)
@@ -70,7 +70,6 @@ SISTEMA = (
 
 _FORMATO = """Responda com este JSON:
 {
-  "resumo": "2 frases no máximo, destacando o que a vaga pede e o candidato tem. NÃO cite números nem anos de experiência.",
   "experiencias": [
     {"id": "<id da experiência>", "bullets": [{"origem": "<id do bullet de origem>", "texto": "bullet reescrito"}]}
   ],
@@ -80,6 +79,8 @@ Regras:
 - Cada bullet reescrito deve derivar de UM bullet de origem (campo "origem") e pode apenas reordenar/condensar/ênfase
   nas partes relevantes à vaga. Mantenha números exatamente como na origem.
 - Máximo de bullets por experiência: {limites}. Ordene do mais ao menos relevante para a vaga.
+- Preserve as tecnologias e os números da origem (são as palavras-chave que os filtros de currículo procuram),
+  valorize o que o candidato fez e o resultado e não economize detalhes técnicos relevantes à vaga.
 - Escreva todo o texto em {idioma_nome}."""
 
 
@@ -151,15 +152,7 @@ def _periodo(inicio: str, fim: str | None, idioma: str) -> str:
     return f"{fmt(inicio)} – {fmt(fim) if fim else atual}"
 
 
-def _resumo_padrao(mestre: Mestre, idioma: str, hoje: date | None) -> str:
-    anos = mestre.anos_experiencia_texto(idioma, hoje)
-    cargo = mestre.cargo_alvo.em(idioma).split("|")[0].strip()
-    if idioma == "en":
-        return f"{cargo} with {anos} of experience."
-    return f"{cargo} com {anos} de experiência."
-
-
-def validar_saida(saida: dict, mestre: Mestre, idioma: str, hoje: date | None = None) -> ConteudoCV:
+def validar_saida(saida: dict, mestre: Mestre, idioma: str) -> ConteudoCV:
     """Compara a saída da LLM com o mestre; corrige ou descarta o que não existir lá."""
     correcoes: list[str] = []
     skills_mestre = mestre.canonicos_skills()
@@ -233,20 +226,20 @@ def validar_saida(saida: dict, mestre: Mestre, idioma: str, hoje: date | None = 
         grupos.setdefault(s.categoria or "Outras", []).append(rotulo)
     skills = [GrupoSkills(categoria=c, itens=i) for c, i in grupos.items()]
 
-    # --- resumo: frase de anos feita por nós; trecho da LLM sem números e só com tecnologias do mestre ---
-    resumo = _resumo_padrao(mestre, idioma, hoje)
-    extra = re.sub(r"\s+", " ", str(saida.get("resumo") or "")).strip()
-    if extra:
-        fora = _termos_ok(extra, taxonomia.com_implicacoes(skills_mestre))
-        if _NUM.search(extra) or fora or len(extra) > MAX_RESUMO_CHARS:
-            correcoes.append("resumo da LLM rejeitado (números, tecnologias fora do mestre ou longo demais)")
-        else:
-            resumo = f"{resumo} {extra}"
+    # --- título no estilo da headline do LinkedIn: cargo | 3-4 tecnologias mais relevantes à vaga ---
+    cargo = mestre.cargo_alvo.em(idioma).split("|")[0].strip()
+    destaque = [n for n in escolhidas if not por_nome[taxonomia.norm(n)].academico][:MAX_TECNOLOGIAS_TITULO]
+    titulo = " | ".join([cargo, *destaque])
+
+    # --- palavras-chave de cada experiência (só as do mestre), as relevantes à vaga primeiro ---
+    ordem = {taxonomia.norm(n): i for i, n in enumerate(escolhidas)}
+    for exp_final in exps:
+        tecs = sorted(mestre.experiencia(exp_final.id).tecnologias, key=lambda t: ordem.get(taxonomia.norm(t), len(ordem)))  # sorted é estável
+        exp_final.tecnologias = tecs[:MAX_TECNOLOGIAS_EXP]
 
     return ConteudoCV(
         idioma=idioma,
-        titulo=mestre.cargo_alvo.em(idioma),
-        resumo=resumo,
+        titulo=titulo,
         experiencias=exps,
         skills=skills,
         formacao=[
@@ -289,10 +282,10 @@ def _json_saida(texto: str) -> dict:
 
 
 def personalizar(rodizio: Rodizio, mestre: Mestre, pessoais: Pessoais, req: RequisitosVaga,
-                 titulo: str, descricao: str, idioma: str, hoje: date | None = None) -> ResultadoPersonalizacao:
+                 titulo: str, descricao: str, idioma: str) -> ResultadoPersonalizacao:
     mensagens = montar_mensagens(mestre, req, titulo, descricao, idioma)
     verificar_privacidade(mensagens, pessoais, mestre)
     resp, saida = rodizio.executar("reescrita_cv", mensagens, json_mode=True, validador=_json_saida,
                                    temperatura=0.3, max_tokens=2500)
-    conteudo = validar_saida(saida, mestre, idioma, hoje)  # type: ignore[arg-type]
+    conteudo = validar_saida(saida, mestre, idioma)  # type: ignore[arg-type]
     return ResultadoPersonalizacao(conteudo=conteudo, provedor=resp.provedor, modelo=resp.modelo)

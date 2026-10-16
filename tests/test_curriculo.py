@@ -15,7 +15,6 @@ from tests.conftest import PESSOAIS, RAIZ, resposta_chat
 
 def saida_valida():
     return {
-        "resumo": "Experiência com integrações de pagamento, Stripe e APIs REST.",
         "experiencias": [
             {"id": "emp_a", "bullets": [
                 {"origem": "emp_a.pagamentos",
@@ -36,8 +35,8 @@ def test_saida_valida_passa_sem_correcoes(mestre):
     emp_a = next(e for e in c.experiencias if e.id == "emp_a")
     assert [b.origem for b in emp_a.bullets] == ["emp_a.pagamentos", "emp_a.producao"]
     assert "1000" in emp_a.bullets[1].texto
-    assert c.resumo.startswith("Desenvolvedor de Software Full Stack com mais de")
-    assert "Experiência com integrações" in c.resumo
+    assert not hasattr(c, "resumo")  # sem seção de resumo no CV
+    assert c.titulo == "Desenvolvedor de Software Full Stack | Stripe | Node.js | TypeScript | Webhooks"
 
 
 def test_tecnologia_inventada_no_bullet_volta_ao_texto_original(mestre):
@@ -78,12 +77,21 @@ def test_origem_inexistente_e_skill_inexistente_sao_descartadas(mestre):
     assert any("Kubernetes" in x for x in c.correcoes)
 
 
-def test_resumo_com_numero_ou_tecnologia_fora_do_mestre_e_trocado_pelo_padrao(mestre):
-    for ruim in ("Mais de 10 anos com Go e Kubernetes.", "Especialista em Terraform."):
-        s = saida_valida()
-        s["resumo"] = ruim
-        c = validar_saida(s, mestre, "pt")
-        assert ruim not in c.resumo and any("resumo" in x for x in c.correcoes)
+def test_titulo_traz_cargo_e_tecnologias_mais_relevantes_sem_academicas(mestre):
+    s = saida_valida()
+    s["skills"] = ["Java", "Kafka", "Laravel", "Redis", "Stripe", "Node.js"]
+    c = validar_saida(s, mestre, "pt")
+    assert c.titulo == "Desenvolvedor de Software Full Stack | Laravel | Redis | Stripe | Node.js"
+
+
+def test_tecnologias_da_experiencia_vem_do_mestre_e_as_da_vaga_vao_primeiro(mestre):
+    s = saida_valida()
+    s["skills"] = ["Webhooks", "Stripe"]
+    c = validar_saida(s, mestre, "pt")
+    emp_a = next(e for e in c.experiencias if e.id == "emp_a")
+    assert emp_a.tecnologias[:2] == ["Webhooks", "Stripe"]
+    assert set(emp_a.tecnologias) <= set(mestre.experiencia("emp_a").tecnologias)
+    assert len(emp_a.tecnologias) <= P.MAX_TECNOLOGIAS_EXP
 
 
 def test_experiencias_profissionais_sempre_entram_e_ordem_e_a_do_mestre(mestre):
@@ -158,7 +166,7 @@ def test_render_gera_pdf_valido_em_pt_e_en(tmp_path, mestre, pessoais):
 
 def test_render_nao_interpreta_texto_como_codigo_typst(tmp_path, mestre, pessoais):
     c = validar_saida(saida_valida(), mestre, "pt")
-    c.resumo = '#panic("quebrou") *negrito* $x$ #import "x.typ"'
+    c.titulo = '#panic("quebrou") *negrito* $x$ #import "x.typ"'
     pdf = renderizar(c, pessoais, RAIZ / "templates_cv", tmp_path / "x.pdf")
     assert pdf.exists()
 

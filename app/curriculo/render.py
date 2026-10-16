@@ -13,9 +13,9 @@ from .mestre import Pessoais
 from .personalizar import ConteudoCV
 
 ROTULOS = {
-    "pt": {"resumo": "Resumo", "experiencia": "Experiência profissional", "skills": "Competências técnicas",
+    "pt": {"tecnologias": "Tecnologias", "experiencia": "Experiência profissional", "skills": "Competências técnicas",
            "formacao": "Formação acadêmica", "certificacoes": "Certificações", "idiomas": "Idiomas"},
-    "en": {"resumo": "Summary", "experiencia": "Professional experience", "skills": "Technical skills",
+    "en": {"tecnologias": "Technologies", "experiencia": "Professional experience", "skills": "Technical skills",
            "formacao": "Education", "certificacoes": "Certifications", "idiomas": "Languages"},
 }
 
@@ -53,7 +53,6 @@ def _dados_template(c: ConteudoCV, p: Pessoais) -> dict:
         "titulo": c.titulo,
         "idioma": c.idioma,
         "contato": contato,
-        "resumo": c.resumo,
         "rotulos": ROTULOS.get(c.idioma, ROTULOS["pt"]),
         "experiencias": [e.model_dump() for e in c.experiencias],
         "skills": [g.model_dump() for g in c.skills],

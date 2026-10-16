@@ -1,9 +1,9 @@
-// CV compatível com ATS: uma coluna, sem tabelas nem imagens, fontes padrão.
+// CV compatível com ATS: uma coluna, sem foto, tabelas, barras de nível nem seção "Sobre mim" (dicas do r/brdev).
 // Os dados vêm de dados.json (strings inseridas como texto, nunca avaliadas como código).
 #let d = json("dados.json")
 
 #set document(title: d.nome + " - " + d.titulo, author: d.nome)
-#set page(paper: "a4", margin: (x: 1.9cm, y: 1.6cm))
+#set page(paper: "a4", margin: (x: 1.9cm, y: 1.3cm))
 #set text(font: ("Liberation Sans", "Arial", "Helvetica", "DejaVu Sans", "Libertinus Serif"), size: 10pt, lang: d.idioma)
 #set par(justify: false, leading: 0.55em, spacing: 0.7em)
 #set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.45em)
@@ -23,17 +23,18 @@
 #align(left)[
   #text(size: 20pt, weight: "bold")[#d.nome] \
   #text(size: 11pt)[#d.titulo] \
-  #d.contato.map(contato).join([  |  ])
+  #d.contato.filter(c => not c.url.starts-with("http")).map(contato).join([  |  ]) \
+  #d.contato.filter(c => c.url.starts-with("http")).map(contato).join([  |  ])
 ]
-
-#secao(d.rotulos.resumo)
-#d.resumo
 
 #secao(d.rotulos.experiencia)
 #for e in d.experiencias [
   #strong[#e.empresa] #h(1fr) #e.periodo \
   #emph[#e.cargo]#if e.local != "" [, #e.local]
   #list(..e.bullets.map(b => [#b.texto]))
+  #if e.tecnologias.len() > 0 [
+    #strong[#d.rotulos.tecnologias:] #e.tecnologias.join(", ")
+  ]
   #v(0.2em)
 ]
 
