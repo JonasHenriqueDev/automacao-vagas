@@ -17,9 +17,21 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from . import registro
+from .coletores.apis_remotas import (
+    ColetorArbeitnow,
+    ColetorHimalayas,
+    ColetorJobicy,
+    ColetorRemoteOK,
+    ColetorRemotive,
+    ColetorWWR,
+)
+from .coletores.ats import COLETORES as COLETORES_QUADRO
+from .coletores.ats import parse_quadro
 from .coletores.base import Coletor, VagaBruta, calcular_hash, detectar_idioma, idade_horas
 from .coletores.email_imap import ColetorEmail
 from .coletores.github_issues import ColetorGithubIssues
+from .coletores.gupy import ColetorGupy
+from .coletores.scraping import ColetorProgramaThor, ColetorVagasCom
 from .config import Config
 from .curriculo import render
 from .curriculo.mestre import Mestre, Pessoais, carregar_mestre, carregar_pessoais
@@ -124,7 +136,51 @@ def montar_coletores(sv: Servicos) -> list[tuple[str, float, Coletor]]:
         resultado.append(("email", float(em.get("min_intervalo_horas", 3)), ColetorEmail(
             em["servidor"], int(em["porta"]), em["usuario"], senha, em.get("pasta", "INBOX"),
             em.get("remetentes", []), em.get("marcar_como_lido", True), int(em.get("max_emails", 50)))))
+
+    idade = sv.idade_maxima_horas()
+    internacional = bool(cfg.obter("fontes.incluir_internacional", False))
+
+    def ativa(nome: str) -> tuple[dict, float] | None:
+        f = _fonte(cfg, nome)
+        return (f, float(f.get("min_intervalo_horas", 3))) if f.get("ativo") else None
+
+    if g := ativa("gupy"):
+        resultado.append(("gupy", g[1], ColetorGupy(
+            g[0].get("termos", []), int(g[0].get("max_paginas", 3)), cliente=cliente, idade_maxima_horas=idade)))
+    if q := ativa("quadros"):
+        for linha in q[0].get("lista", []):
+            quadro = parse_quadro(str(linha))
+            if quadro is None:
+                registro.log(f"Quadro ignorado (use plataforma:nome): {linha!r}", "aviso", "coleta")
+                continue
+            c = COLETORES_QUADRO[quadro[0]](quadro[1], internacional=internacional, cliente=cliente,
+                                            idade_maxima_horas=idade)
+            resultado.append((c.nome, q[1], c))
+    if p := ativa("programathor"):
+        resultado.append(("programathor", p[1], ColetorProgramaThor(cliente, idade)))
+    if v := ativa("vagas_com"):
+        resultado.append(("vagas.com", v[1], ColetorVagasCom(
+            v[0].get("termos", []), cliente, idade, url_conhecida=lambda url: _url_conhecida(sv, url))))
+    if internacional:
+        for nome, classe in (("remotive", ColetorRemotive), ("remoteok", ColetorRemoteOK),
+                             ("jobicy", ColetorJobicy), ("himalayas", ColetorHimalayas),
+                             ("arbeitnow", ColetorArbeitnow), ("weworkremotely", ColetorWWR)):
+            if f := ativa(nome):
+                resultado.append((nome, f[1], classe(cliente, idade)))
+    elif h := ativa("himalayas"):  # o Himalayas marca vagas do Brasil: valem mesmo sem as internacionais
+        resultado.append(("himalayas", h[1], ColetorHimalayas(cliente, idade, so_brasil=True)))
     return resultado
+
+
+def _fonte(cfg: Config, nome: str) -> dict:
+    """Seção `fontes.<nome>` já com os valores salvos pelo painel (que valem mais que o config.yaml)."""
+    base = cfg.obter(f"fontes.{nome}") or {}
+    return {k: cfg.obter(f"fontes.{nome}.{k}", v) for k, v in base.items()}
+
+
+def _url_conhecida(sv: Servicos, url: str) -> bool:
+    with sv.fabrica() as s:
+        return s.scalar(select(Vaga.id).where(Vaga.url == url).limit(1)) is not None
 
 
 def _assume_remoto(config: Config, fonte: str) -> bool:
@@ -166,6 +222,8 @@ def coletar_tudo(sv: Servicos) -> tuple[int, int, list[str]]:
     erros: list[str] = []
     fontes = montar_coletores(sv)
     maxima = sv.idade_maxima_horas()
+    cfg_filtros = sv.config.obter("filtros")
+    cfg_filtros["palavras_bloqueadas"] = sv.config.obter("filtros.palavras_bloqueadas", [])
     registro.log(f"Coleta: {len(fontes)} fonte(s) ativa(s); idade máxima da vaga: "
                  f"{f'{maxima:g} h' if maxima else 'sem limite'}.", "info", "coleta")
     for i, (nome, intervalo, coletor) in enumerate(fontes):
@@ -183,13 +241,17 @@ def coletar_tudo(sv: Servicos) -> tuple[int, int, list[str]]:
             erros.append(msg)
             sv.discord.erro("Coletor com falha", msg)
             continue
-        antigas = duplicadas = novas_fonte = 0
+        antigas = duplicadas = novas_fonte = fora_da_area = 0
+        prefiltrar = getattr(coletor, "prefiltrar_titulo", False)
         with sv.fabrica() as s:
             for v in vagas:
                 coletadas += 1
                 idade = idade_horas(v.data_publicacao)
                 if maxima and idade is not None and idade > maxima:
                     antigas += 1
+                    continue
+                if prefiltrar and filtros.prefiltro_titulo(v, cfg_filtros):
+                    fora_da_area += 1  # fonte ampla: nem grava o que o filtro eliminaria só pelo título
                     continue
                 if salvar_se_nova(s, v) is not None:
                     novas_fonte += 1
@@ -201,11 +263,19 @@ def coletar_tudo(sv: Servicos) -> tuple[int, int, list[str]]:
             s.commit()
         novas += novas_fonte
         stats = getattr(coletor, "stats", {})
-        detalhe = (f"issues lidas {stats.get('lidas', '?')} em {stats.get('paginas', '?')} página(s); "
-                   f"{stats.get('antigas', 0)} velhas demais no coletor, {stats.get('label_excluida', 0)} com label "
-                   f"excluída, {stats.get('prs', 0)} PRs; " if stats else "")
+        if "prs" in stats:  # GitHub
+            detalhe = (f"issues lidas {stats.get('lidas', '?')} em {stats.get('paginas', '?')} página(s); "
+                       f"{stats.get('antigas', 0)} velhas demais no coletor, {stats.get('label_excluida', 0)} com label "
+                       f"excluída, {stats.get('prs', 0)} PRs; ")
+        elif stats:
+            detalhe = (f"{stats.get('lidas', '?')} lida(s) em {stats.get('paginas', '?')} chamada(s)"
+                       + (f", {stats['fora_do_pais']} fora do país elegível" if stats.get("fora_do_pais") else "")
+                       + (f", {stats['tipo_ignorado']} de tipo ignorado" if stats.get("tipo_ignorado") else "") + "; ")
+        else:
+            detalhe = ""
+        extra = f", {fora_da_area} fora da área/senioridade pelo título" if fora_da_area else ""
         registro.log(f"{nome}: {detalhe}{len(vagas)} candidata(s) → {novas_fonte} NOVA(S), {duplicadas} já conhecida(s), "
-                     f"{antigas} velha(s) demais.", "info", "coleta")
+                     f"{antigas} velha(s) demais{extra}.", "info", "coleta")
     registro.log(f"Coleta concluída: {coletadas} candidata(s), {novas} nova(s).", "info", "coleta")
     return coletadas, novas, erros
 

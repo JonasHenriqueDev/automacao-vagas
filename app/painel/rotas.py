@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..agendador import validar_cron
 from ..config import SEGREDOS_CONHECIDOS
 from ..coletores.base import USER_AGENT, idade_horas
+from ..coletores.ats import parse_quadro
 from ..coletores.email_imap import ColetorEmail
 from ..db.models import (
     Aplicacao,
@@ -333,6 +334,21 @@ def _ranking_do_form(form, tarefa: str, atual: list[dict], validos: set[str]) ->
     return [x[2] for x in sorted(itens, key=lambda t: (t[0], t[1]))]
 
 
+#: (chave em `fontes.*`, rótulo, só roda com "incluir internacionais" ligado)
+FONTES_UI = [
+    ("gupy", "Gupy (vagas brasileiras)", False),
+    ("quadros", "Quadros de empresas (Greenhouse, Lever, Ashby)", False),
+    ("programathor", "ProgramaThor (sem data nem descrição completa)", False),
+    ("vagas_com", "Vagas.com", False),
+    ("himalayas", "Himalayas (as do Brasil sempre; o resto só com internacionais)", False),
+    ("remotive", "Remotive", True),
+    ("remoteok", "RemoteOK", True),
+    ("jobicy", "Jobicy", True),
+    ("arbeitnow", "Arbeitnow", True),
+    ("weworkremotely", "We Work Remotely", True),
+]
+
+
 @router.get("/configuracoes", response_class=HTMLResponse, dependencies=[Depends(exigir_login)])
 def configuracoes(request: Request):
     sv, ag = sv_de(request), request.app.state.agendador
@@ -346,6 +362,13 @@ def configuracoes(request: Request):
         idade_max=cfg.obter("filtros.idade_maxima_horas", 24),
         repos="\n".join(r["repo"] + (" | " + ", ".join(r.get("labels", [])) if r.get("labels") else "")
                         for r in repos),
+        incluir_internacional=bool(cfg.obter("fontes.incluir_internacional", False)),
+        fontes_ui=[{"chave": chave, "rotulo": rotulo, "internacional": inter,
+                    "ativo": bool(cfg.obter(f"fontes.{chave}.ativo", True))}
+                   for chave, rotulo, inter in FONTES_UI],
+        gupy_termos="\n".join(cfg.obter("fontes.gupy.termos") or []),
+        vagas_termos="\n".join(cfg.obter("fontes.vagas_com.termos") or []),
+        quadros="\n".join(cfg.obter("fontes.quadros.lista") or []),
         rankings={t: cfg.obter(f"llm.ranking.{t}") or [] for t in ("reescrita_cv", "extracao")},
         titulos={"reescrita_cv": "Reescrita do CV", "extracao": "Extração de requisitos"},
         rodando=_rodando())
@@ -403,6 +426,17 @@ async def salvar_fontes(request: Request):
             avisar(request, f"Repositório inválido: {nome!r} (use dono/repositório).")
             return voltar("/configuracoes")
         repos.append({"repo": nome, "labels": [l.strip() for l in labels.split(",") if l.strip()]})
+    def linhas(campo: str) -> list[str]:
+        return [x.strip() for x in str(form.get(campo, "")).splitlines() if x.strip()]
+
+    termos_gupy, termos_vagas, quadros = linhas("gupy_termos"), linhas("vagas_termos"), linhas("quadros")
+    if any(len(t) > 60 for t in termos_gupy + termos_vagas) or len(termos_gupy) > 20 or len(termos_vagas) > 20:
+        avisar(request, "Termos de busca inválidos: até 20 termos de no máximo 60 caracteres.")
+        return voltar("/configuracoes")
+    invalidos = [q for q in quadros if parse_quadro(q) is None]
+    if invalidos:
+        avisar(request, f"Quadro inválido: {invalidos[0]!r} (use plataforma:nome, com plataforma greenhouse, lever ou ashby).")
+        return voltar("/configuracoes")
     try:
         idade = int(str(form.get("idade_max", "24")).strip() or "24")
         if not 0 <= idade <= 24 * 365:
@@ -412,6 +446,12 @@ async def salvar_fontes(request: Request):
         return voltar("/configuracoes")
     cfg.definir("filtros.idade_maxima_horas", idade)
     cfg.definir("fontes.github_issues.repos", repos)
+    cfg.definir("fontes.incluir_internacional", form.get("incluir_internacional") == "on")
+    for chave, _rotulo, _inter in FONTES_UI:
+        cfg.definir(f"fontes.{chave}.ativo", form.get(f"fonte_{chave}") == "on")
+    cfg.definir("fontes.gupy.termos", termos_gupy)
+    cfg.definir("fontes.vagas_com.termos", termos_vagas)
+    cfg.definir("fontes.quadros.lista", [f"{p}:{n}" for p, n in map(parse_quadro, quadros)])
     cfg.definir("filtros.palavras_bloqueadas",
                 [p.strip() for p in str(form.get("bloqueadas", "")).splitlines() if p.strip()])
     avisar(request, "Fontes e filtros salvos.")

@@ -56,6 +56,9 @@ PADRAO: dict[str, Any] = {
                         r"\bbrazil\b", r"\bbrasil\b", r"\bbr\b"],
     },
     "fontes": {
+        # Liga as fontes estrangeiras (Remotive, RemoteOK, Jobicy, Himalayas, Arbeitnow, We Work Remotely) e, nos
+        # quadros de empresas, as vagas sem restrição de país. Desligado: só vagas do Brasil/LATAM.
+        "incluir_internacional": False,
         "github_issues": {
             "ativo": True,
             "min_intervalo_horas": 3,
@@ -81,6 +84,34 @@ PADRAO: dict[str, Any] = {
             "marcar_como_lido": True,
             "max_emails": 50,
         },
+        "gupy": {
+            "ativo": True,
+            "min_intervalo_horas": 3,
+            "max_paginas": 3,
+            "termos": ["desenvolvedor", "engenheiro de software", "programador", "backend", "full stack"],
+        },
+        # Quadros públicos por empresa, "plataforma:nome" (nome = o final da URL do quadro de vagas da empresa)
+        "quadros": {
+            "ativo": True,
+            "min_intervalo_horas": 3,
+            "lista": [
+                "greenhouse:quintoandar", "greenhouse:vtex", "greenhouse:gympass", "greenhouse:ebanx",
+                "greenhouse:stone", "greenhouse:c6bank", "greenhouse:wildlifestudios", "greenhouse:rdstation",
+                "greenhouse:jusbrasil", "greenhouse:gitlab", "greenhouse:datadog", "greenhouse:mongodb",
+                "greenhouse:elastic", "greenhouse:thoughtworks", "greenhouse:turing",
+                "lever:dlocal", "lever:ciandt", "lever:toptal",
+                "ashby:supabase", "ashby:posthog", "ashby:linear", "ashby:openai",
+            ],
+        },
+        "programathor": {"ativo": True, "min_intervalo_horas": 6},
+        "vagas_com": {"ativo": True, "min_intervalo_horas": 6, "termos": ["desenvolvedor", "programador"]},
+        # Estrangeiras: só rodam com `incluir_internacional` ligado
+        "remotive": {"ativo": True, "min_intervalo_horas": 6},  # os termos da API pedem no máx. ~4 consultas/dia
+        "remoteok": {"ativo": True, "min_intervalo_horas": 3},
+        "jobicy": {"ativo": True, "min_intervalo_horas": 3},
+        "himalayas": {"ativo": True, "min_intervalo_horas": 3},
+        "arbeitnow": {"ativo": True, "min_intervalo_horas": 3},
+        "weworkremotely": {"ativo": True, "min_intervalo_horas": 3},
     },
     "llm": {
         "tentativas_temporarias": 2,
@@ -138,7 +169,21 @@ CHAVES_EDITAVEIS = {
     "llm.provedores",
     "filtros.palavras_bloqueadas",
     "filtros.idade_maxima_horas",
+    "fontes.incluir_internacional",
     "fontes.github_issues.repos",
+    "fontes.gupy.ativo",
+    "fontes.gupy.termos",
+    "fontes.quadros.ativo",
+    "fontes.quadros.lista",
+    "fontes.programathor.ativo",
+    "fontes.vagas_com.ativo",
+    "fontes.vagas_com.termos",
+    "fontes.remotive.ativo",
+    "fontes.remoteok.ativo",
+    "fontes.jobicy.ativo",
+    "fontes.himalayas.ativo",
+    "fontes.arbeitnow.ativo",
+    "fontes.weworkremotely.ativo",
     "fontes.email.servidor",
     "fontes.email.porta",
     "fontes.email.usuario",

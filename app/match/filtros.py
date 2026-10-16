@@ -72,6 +72,30 @@ def detectar_senioridade(v: VagaBruta, cfg: dict) -> tuple[str, str | None]:
     return "desconhecida", None
 
 
+def _motivo_area(texto_titulo: str, cfg: dict) -> str | None:
+    """Área: só front-end / só mobile é descartada; o título precisa parecer vaga de desenvolvimento."""
+    area_ok = _alguma(cfg["areas_aceitas"], texto_titulo)
+    area_ruim = _alguma(cfg["areas_bloqueadas"], texto_titulo)
+    if area_ruim and not _alguma(
+        ["full stack", "fullstack", "full-stack", "back-end", "backend", "back end", "integra"], texto_titulo
+    ):
+        return f"área fora do alvo ({area_ruim})"
+    if not area_ok:
+        return "título não parece vaga de desenvolvimento"
+    return None
+
+
+def prefiltro_titulo(v: VagaBruta, cfg: dict) -> str | None:
+    """Motivo para nem gravar a vaga (título fora da área ou de senioridade bloqueada), ou None.
+
+    Só para fontes amplas (milhares de vagas de todas as áreas); as demais gravam tudo e mostram o motivo da
+    eliminação no painel. Usa exatamente as mesmas regras de `avaliar`."""
+    _, bloqueado = detectar_senioridade(v, cfg)
+    if bloqueado:
+        return f"senioridade fora do alvo ({bloqueado})"
+    return _motivo_area(norm(" ".join([v.titulo, *v.labels])), cfg)
+
+
 def avaliar(v: VagaBruta, cfg: dict, assume_remoto: bool = False) -> ResultadoFiltro:
     """`cfg` é a seção `filtros` da configuração."""
     texto_titulo = norm(" ".join([v.titulo, *v.labels]))
@@ -89,15 +113,9 @@ def avaliar(v: VagaBruta, cfg: dict, assume_remoto: bool = False) -> ResultadoFi
     if bloqueado:
         return ResultadoFiltro(False, f"senioridade fora do alvo ({bloqueado})", modelo, nivel)
 
-    # Área: só front-end / só mobile é descartada; precisa parecer vaga de desenvolvimento.
-    area_ok = _alguma(cfg["areas_aceitas"], texto_titulo)
-    area_ruim = _alguma(cfg["areas_bloqueadas"], texto_titulo)
-    if area_ruim and not _alguma(
-        ["full stack", "fullstack", "full-stack", "back-end", "backend", "back end", "integra"], texto_titulo
-    ):
-        return ResultadoFiltro(False, f"área fora do alvo ({area_ruim})", modelo, nivel)
-    if not area_ok:
-        return ResultadoFiltro(False, "título não parece vaga de desenvolvimento", modelo, nivel)
+    motivo_area = _motivo_area(texto_titulo, cfg)
+    if motivo_area:
+        return ResultadoFiltro(False, motivo_area, modelo, nivel)
 
     for palavra in cfg.get("palavras_bloqueadas", []):
         if _tem(palavra, texto_total):

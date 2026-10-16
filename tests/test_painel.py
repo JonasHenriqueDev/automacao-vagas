@@ -260,6 +260,35 @@ def test_repositorios_validam_formato(logado, painel):
     assert repos[0] == {"repo": "dono/repo", "labels": ["Remoto", "Pleno"]} and sv.config.obter("filtros.palavras_bloqueadas") == ["cobol"]
 
 
+def test_painel_liga_internacional_e_escolhe_fontes(logado, painel):
+    sv, _ = painel
+    html = logado.get("/configuracoes").text
+    assert 'name="incluir_internacional"' in html and "greenhouse:quintoandar" in html and "Remotive" in html
+    assert sv.config.obter("fontes.incluir_internacional") is False
+    t = token(logado)
+    base = {"csrf": t, "repos": "dono/repo", "bloqueadas": "", "idade_max": "24",
+            "gupy_termos": "desenvolvedor" + chr(10) + "python", "vagas_termos": "programador",
+            "quadros": "greenhouse:nubank" + chr(10) + "Lever:acme"}
+    logado.post("/configuracoes/fontes", data={**base, "incluir_internacional": "on",
+                                               "fonte_gupy": "on", "fonte_remotive": "on"})
+    assert sv.config.obter("fontes.incluir_internacional") is True
+    assert sv.config.obter("fontes.gupy.ativo") is True and sv.config.obter("fontes.remotive.ativo") is True
+    assert sv.config.obter("fontes.jobicy.ativo") is False  # não marcada = desligada
+    assert sv.config.obter("fontes.gupy.termos") == ["desenvolvedor", "python"]
+    assert sv.config.obter("fontes.quadros.lista") == ["greenhouse:nubank", "lever:acme"]
+    logado.post("/configuracoes/fontes", data=base)  # sem a caixa: volta a só Brasil
+    assert sv.config.obter("fontes.incluir_internacional") is False
+
+
+def test_painel_rejeita_quadro_invalido_sem_salvar(logado, painel):
+    sv, _ = painel
+    t = token(logado)
+    logado.post("/configuracoes/fontes", data={"csrf": t, "repos": "dono/repo", "bloqueadas": "", "idade_max": "24",
+                                               "quadros": "workday:x", "incluir_internacional": "on"})
+    assert sv.config.obter("fontes.incluir_internacional") is False
+    assert sv.config.obter("fontes.github_issues.repos")[0]["repo"] == "backend-br/vagas"
+
+
 def test_segredos_criptografados_e_nunca_exibidos(logado, painel, monkeypatch):
     from cryptography.fernet import Fernet
     sv, _ = painel

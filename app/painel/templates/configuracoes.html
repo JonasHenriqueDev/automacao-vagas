@@ -33,6 +33,20 @@
 <h2>Fontes e filtros</h2>
 <form class="card" method="post" action="/configuracoes/fontes">
   <input type="hidden" name="csrf" value="{{ csrf }}">
+  <h3 style="font-size:1rem">Quais fontes consultar</h3>
+  <label><input type="checkbox" name="incluir_internacional" {{ 'checked' if incluir_internacional }}> <strong>Incluir vagas internacionais</strong>
+    <span class="suave">— liga as fontes estrangeiras e, nos quadros de empresas, as vagas sem restrição de país (“Remote”, “Worldwide”). Desligado: só vagas do Brasil/LATAM.</span></label>
+  {% for f in fontes_ui %}
+  <div><label><input type="checkbox" name="fonte_{{ f.chave }}" {{ 'checked' if f.ativo }}> {{ f.rotulo }}
+    {% if f.internacional %}<span class="suave">(só com internacionais ligado)</span>{% endif %}</label></div>
+  {% endfor %}
+  <label for="gupy_termos">Gupy: termos de busca (um por linha)</label>
+  <textarea id="gupy_termos" name="gupy_termos" style="min-height:70px">{{ gupy_termos }}</textarea>
+  <label for="vagas_termos">Vagas.com: termos de busca (um por linha)</label>
+  <textarea id="vagas_termos" name="vagas_termos" style="min-height:50px">{{ vagas_termos }}</textarea>
+  <label for="quadros">Quadros de empresas (um por linha: <code>greenhouse:nome</code>, <code>lever:nome</code> ou <code>ashby:nome</code>; o nome é o final da URL do quadro de vagas da empresa)</label>
+  <textarea id="quadros" name="quadros" style="min-height:120px">{{ quadros }}</textarea>
+  <hr>
   <label for="idade_max">Idade máxima da vaga (horas; 0 = sem limite). Vagas abertas há mais tempo não são gravadas nem mostradas.</label>
   <input id="idade_max" name="idade_max" type="number" min="0" step="1" value="{{ idade_max }}" style="width:100px">
   <label for="repos">Repositórios de vagas no GitHub (um por linha: <code>dono/repo | Label1, Label2</code>)</label>

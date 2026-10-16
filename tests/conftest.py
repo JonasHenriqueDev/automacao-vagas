@@ -53,6 +53,9 @@ def fabrica_servicos(tmp_path, monkeypatch):
             "mestre": str(mestre_yaml), "pessoais": str(pessoais_yaml),
             "templates_cv": str(RAIZ / "templates_cv"),
         })
+        for nome in ("gupy", "quadros", "programathor", "vagas_com", "remotive", "remoteok", "jobicy",
+                     "himalayas", "arbeitnow", "weworkremotely"):
+            dados["fontes"][nome]["ativo"] = False  # os testes ligam só as fontes que exercitam
         dados["painel"]["cookie_seguro"] = False
         dados["llm"]["backoff_segundos"] = 0
         for k, v in (ajustes or {}).items():

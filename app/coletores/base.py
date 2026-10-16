@@ -5,6 +5,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from html import unescape
 from typing import Protocol
 from urllib.parse import urlsplit, urlunsplit
 
@@ -28,7 +29,11 @@ class VagaBruta:
 
 
 class Coletor(Protocol):
-    """Cada fonte é um módulo isolado com esta interface (seção 4 do plano)."""
+    """Cada fonte é um módulo isolado com esta interface (seção 4 do plano).
+
+    Atributos opcionais lidos pelo pipeline: `prefiltrar_titulo` (descarta já na coleta títulos que
+    não são de desenvolvimento ou de senioridade bloqueada, para fontes amplas) e `stats` (contadores
+    mostrados no log da coleta)."""
 
     nome: str
 
@@ -67,6 +72,73 @@ def detectar_idioma(texto: str) -> str:
     pt = len(_PT.findall(texto))
     en = len(_EN.findall(texto))
     return "en" if en > pt else "pt"
+
+
+def data_iso(texto: str | None) -> datetime | None:
+    """ISO 8601 (com 'Z', offset ou sem fuso) -> datetime ingênuo em UTC; None se vazio/inválido."""
+    if not texto:
+        return None
+    try:
+        d = datetime.fromisoformat(str(texto).strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d.astimezone(timezone.utc).replace(tzinfo=None) if d.tzinfo else d
+
+
+def data_epoch(valor: int | float | str | None) -> datetime | None:
+    """Epoch em segundos ou milissegundos -> datetime ingênuo em UTC."""
+    try:
+        n = float(valor)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    if n > 1e11:  # milissegundos
+        n /= 1000
+    return datetime.fromtimestamp(n, timezone.utc).replace(tzinfo=None)
+
+
+def corrigir_mojibake(texto: str) -> str:
+    """Desfaz UTF-8 lido como Latin-1 ('QuÃ©' -> 'Qué'), defeito comum em APIs (ex.: RemoteOK)."""
+    if "Ã" not in texto and "Â" not in texto:
+        return texto
+    try:
+        return texto.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return texto
+
+
+def html_para_texto(html: str) -> str:
+    """HTML (inclusive escapado duas vezes, como na Arbeitnow) -> texto simples com quebras de linha."""
+    texto = corrigir_mojibake(html or "")
+    if "&lt;" in texto and "<" not in texto:
+        texto = unescape(texto)
+    texto = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", texto)
+    texto = re.sub(r"(?i)<br\s*/?>|</(p|div|h[1-6]|ul|ol|tr)>", "\n", texto)
+    texto = re.sub(r"(?i)<li\b[^>]*>", "\n- ", texto)
+    texto = unescape(re.sub(r"<[^>]+>", " ", texto)).replace("\xa0", " ")
+    texto = re.sub(r"[ \t]+", " ", texto)
+    return re.sub(r"\n\s*\n\s*\n+", "\n\n", re.sub(r" ?\n ?", "\n", texto)).strip()
+
+
+_BRASIL = re.compile(
+    r"brazil|brasil|latam|latin america|south america|am[eé]rica latina|"
+    r"s[aã]o paulo|rio de janeiro|belo horizonte|curitiba|porto alegre|florian[oó]polis|recife|campinas|"
+    r"bras[ií]lia|salvador|fortaleza|goi[aâ]nia|, br\b", re.I)
+_SEM_RESTRICAO = re.compile(
+    r"worldwide|anywhere|global|\bany ?where\b|whole world|everywhere|"
+    r"^\s*(fully |100% )?(remote|remoto|home ?office|telecommute)?\s*$", re.I)
+
+
+def local_brasil(local: str) -> bool:
+    """O local cita o Brasil/LATAM (ou uma cidade brasileira)."""
+    return bool(_BRASIL.search(local or ""))
+
+
+def elegivel_do_brasil(local: str) -> bool:
+    """Quem mora no Brasil pode se candidatar: local vazio, 'remote' genérico, 'worldwide' ou cita Brasil/LATAM.
+    'USA only', 'Germany', 'Europe' etc. dão False."""
+    return local_brasil(local) or bool(_SEM_RESTRICAO.search(local or ""))
 
 
 def idade_horas(publicada: datetime | None, agora: datetime | None = None) -> float | None:
