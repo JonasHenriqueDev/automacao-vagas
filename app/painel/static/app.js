@@ -7,6 +7,37 @@ document.addEventListener('submit', function (e) {
     e.preventDefault();
     return;
   }
+  // Indicador de carregamento: o botão que enviou o formulário mostra um spinner até a página responder.
+  // Não usa `disabled` porque isso tiraria o name/value do botão (ex.: "Remover") do envio.
+  if (e.defaultPrevented || f.target === '_blank' || f.tagName !== 'FORM') return;
+  if (f.hasAttribute('data-enviando')) { e.preventDefault(); return; }  // evita enviar duas vezes
+  f.setAttribute('data-enviando', '');
+  var botao = e.submitter || f.querySelector('button:not([type="button"])');
+  if (botao) {
+    botao.classList.add('carregando');
+    botao.setAttribute('aria-busy', 'true');
+  }
+});
+
+// Voltar pelo histórico pode restaurar a página do cache já com o spinner ligado: limpa.
+window.addEventListener('pageshow', function (e) {
+  if (!e.persisted) return;
+  document.querySelectorAll('form[data-enviando]').forEach(function (f) { f.removeAttribute('data-enviando'); });
+  document.querySelectorAll('button.carregando').forEach(function (b) {
+    b.classList.remove('carregando');
+    b.removeAttribute('aria-busy');
+  });
+});
+
+// Botões que chamam o servidor via HTMX (ex.: "Melhorar com a LLM", "Testar", "Descartar"):
+// o HTMX põe a classe htmx-request no botão durante a chamada; aqui também sinalizamos aria-busy.
+document.addEventListener('htmx:beforeRequest', function (e) {
+  var el = e.detail && e.detail.elt;
+  if (el && el.tagName === 'BUTTON') el.setAttribute('aria-busy', 'true');
+});
+document.addEventListener('htmx:afterRequest', function (e) {
+  var el = e.detail && e.detail.elt;
+  if (el && el.removeAttribute) el.removeAttribute('aria-busy');
 });
 
 // Tema claro/escuro: o botão alterna entre os dois e guarda a escolha; sem escolha, vale o tema do sistema.
