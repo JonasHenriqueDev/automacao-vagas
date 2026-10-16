@@ -144,6 +144,10 @@ def test_llm_log_filtra_e_exporta_csv(logado, painel):
     falhas = logado.get("/llm-log?resultado=falha&provedor=groq&tipo=cota").text
     assert "quota esgotada" in falhas and "erro completo" in falhas
     assert "quota esgotada" not in logado.get("/llm-log?resultado=ok").text
+    # o formulário GET envia execucao= vazio quando o campo não é preenchido
+    assert "quota esgotada" in logado.get("/llm-log?provedor=&resultado=&tipo=&execucao=").text
+    assert logado.get("/llm-log.csv?execucao=").status_code == 200
+    assert logado.get("/llm-log?execucao=1").status_code == 200
     csv_ = logado.get("/llm-log.csv?provedor=groq")
     assert csv_.status_code == 200 and csv_.text.splitlines()[0].startswith("id,quando_utc,provedor")
     assert "quota esgotada" in csv_.text and "429" in csv_.text  # erro completo, sem truncar

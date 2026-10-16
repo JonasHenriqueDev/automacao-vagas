@@ -72,12 +72,25 @@ class ClienteOpenAI:
     def listar_modelos(self) -> list[str]:
         try:
             r = self._http.get(f"{self.base_url}/models", headers=self._headers())
+            if r.status_code in (404, 405) and self.base_url.endswith("/ai/v1"):
+                # Cloudflare Workers AI: o endpoint OpenAI-compatível não lista modelos
+                r = self._http.get(self.base_url[: -len("/v1")] + "/models/search", headers=self._headers(),
+                                   params={"task": "Text Generation", "per_page": 100})
+            elif self.base_url.endswith("models.github.ai/inference"):
+                # GitHub Models: /inference/models responde "OK" em texto; o catálogo é outra rota
+                r = self._http.get(self.base_url[: -len("/inference")] + "/catalog/models",
+                                   headers={**self._headers(), "Accept": "application/vnd.github+json"})
         except httpx.HTTPError as e:
             raise ErroTemporario(f"Falha de rede: {e}") from e
         self._checar(r)
-        dados = r.json()
-        itens = dados.get("data", dados) if isinstance(dados, dict) else dados
-        return sorted({str(m.get("id") or m.get("name")) for m in itens if isinstance(m, dict)})
+        try:
+            dados = r.json()
+        except ValueError as e:
+            raise ErroLLM(f"Resposta não é JSON (HTTP {r.status_code}): {r.text[:200]!r}") from e
+        itens = dados.get("data") or dados.get("result") or [] if isinstance(dados, dict) else dados
+        # Cloudflare devolve `id` como UUID; o nome usável no `model` fica em `name`
+        chave = "name" if isinstance(dados, dict) and "result" in dados and "data" not in dados else "id"
+        return sorted({str(m.get(chave) or m.get("name") or m.get("id")) for m in itens if isinstance(m, dict)})
 
     @staticmethod
     def _checar(r: httpx.Response) -> None:

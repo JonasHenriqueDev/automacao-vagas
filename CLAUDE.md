@@ -1,0 +1,43 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Respond in pt-BR (user preference). Code identifiers, comments and UI text are in Portuguese; match that.
+
+## Commands
+
+Python 3.12+; the venv lives in `.venv` (on Windows use `.venv/Scripts/python`, on Linux `.venv/bin/python`).
+
+```bash
+.venv/Scripts/python -m pytest -q                           # whole suite (~45 s)
+.venv/Scripts/python -m pytest tests/test_x.py::test_y -q   # single test
+.venv/Scripts/python -m app rodar        # one full run now (CLI); also: listar, agendar, servir, criar-usuario, gerar-chave, cron
+.venv/Scripts/python -m app servir       # panel (127.0.0.1:8090) + scheduler in one process
+```
+
+There is no linter configured. Schema changes need an Alembic migration, then add `server_default` for new NOT NULL columns:
+`alembic -c alembic.ini revision --autogenerate -m "..." --rev-id 000N` (point `sqlalchemy.url` at a scratch DB upgraded to the previous revision). At runtime `bootstrap.criar_servicos()` runs `migrar()`; tests use `Base.metadata.create_all` instead.
+
+## Architecture
+
+Flow: scheduler/CLI/panel → `pipeline.rodar()` → `coletar_tudo` (collectors → age filter → dedupe → save) → `processar_pendentes` (eliminatory filters → score → CV) → `notificar` (Discord). `pipeline.Servicos` bundles config, session factory, `Rodizio` and `Discord`; the CLI, scheduler and panel all build it via `bootstrap.criar_servicos()`.
+
+Things that need several files to understand:
+
+- **Config precedence** (`app/config.py`): value saved by the panel in the DB (only keys in `CHAVES_EDITAVEIS`, stored as `cfg.*`) > `config.yaml` > `PADRAO`. Secrets: Fernet-encrypted in DB (needs `CHAVE_MESTRA`) > environment/`.env`. `Config.obter()` reads the DB on every call, so panel edits apply to the next run without restart.
+- **Run logging/progress** (`app/registro.py`): a `contextvars` context set by `rodar()` lets any module call `registro.log()`/`registro.progresso()` and lets the LLM rotation link each call to the current run and vaga. The panel polls `/execucoes/{id}/progresso` (HTMX) to render the live bar and log. `rodar()` holds a process-wide `TRAVA`; manual runs go through `iniciar_em_segundo_plano`.
+- **SQLite single-writer rule**: never keep a session with pending writes open while calling code that writes through another session (`registro.log`, `Rodizio._registrar`) — it deadlocks with "database is locked". Commit first (see `pontuar`, `reprocessar_vaga`).
+- **LLM rotation** (`app/llm/`): OpenAI-compatible client + `Rodizio.executar(tarefa, ...)` walks `llm.ranking.<tarefa>` (`extracao`, `reescrita_cv`), skipping providers without key / in cooldown / disabled; 429 → cooldown, 401/403 → disable + Discord alert, 5xx/timeout → backoff, validator `ValueError` → next provider. Every call is stored in `llm_chamadas` (full error text, HTTP status, duration). When all fail, `ProvedoresEsgotados` is raised and the vaga simply stays queued for the next run. Model names are config, not code (providers retire them: e.g. `gemini-2.5-flash` 404s; use the `*-latest` aliases).
+- **Matching** (`app/match/`): `taxonomia.py` (canonical tech names + synonyms + implications) is the shared vocabulary for keyword extraction, LLM-requirement normalization, scoring and the CV anti-invention check. `filtros.py` = eliminatory rules (remote-only, seniority, front/mobile-only, region), `score.py` = weighted score, `seguranca.py` = job text is untrusted: delimited as data in prompts and scanned for hidden instructions.
+- **CV generation** (`app/curriculo/`): `personalizar.py` sends the LLM an anonymized master (experiences by id, no company names, no personal data — `verificar_privacidade` raises `ErroPrivacidade` otherwise), then `validar_saida` rejects/corrects anything not in the master (unknown technologies per experience, invented numbers, unknown skills); experience years come from `inicio_carreira`, never from the LLM. `render.py` compiles `templates_cv/cv.typ` with the `typst` Python package; contact items are real hyperlinks styled like body text.
+- **Master CV with active flags**: `data/curriculo_mestre.yaml` items carry `ativo`; `Mestre.somente_ativos()` is what `Servicos.mestre()` returns, so disabled items vanish from score and CV. The panel's Currículo tab edits the file through `curriculo/edicao.py` (`ACOES` dict; validates with the model, dated backup in `data/backups/`, atomic write, stale-page check via item fingerprints).
+- **Age rule**: only vagas opened within `filtros.idade_maxima_horas` (24 h) are stored/shown/notified. Age = GitHub issue **creation** date; the collector sorts by `created` and stops paging at the first old issue (GitHub's `since` filters by *update* and brings back old jobs — don't use it). Dedupe is by URL hash and by empresa+título.
+- **Panel** (`app/painel/`): sync FastAPI handlers + Jinja + vendored HTMX. Every POST goes through `checar_csrf` (form field `csrf` or `X-CSRF-Token`). The CSP is `script-src 'self'`, so **no inline `on*=` handlers** — use `data-*` attributes handled in `static/app.js`. `app.py` forces `.js`/`.css` MIME types (Windows registry serves `.js` as text/plain and breaks HTMX). Times are stored as naive UTC (`agora_utc`) and shown in America/Sao_Paulo via the `hl` template filter.
+
+## Private data and tests
+
+`data/curriculo_mestre.yaml`, `data/dados_pessoais.yaml`, `PLANO-automacao-vagas.md`, `.env`, `config.yaml`, DBs and `saida/` are gitignored — the repo is **public** and its history was rewritten once to remove them; never commit them. Tests run only on `data/*.example.yaml` (copied to a tmp dir when the panel edits it) and fictional personas; `tests/conftest.py::fabrica_servicos` builds a `Servicos` with mocked HTTP (`httpx.MockTransport`).
+
+## Deployment
+
+Production is an Oracle Always-Free VM (Ubuntu, ~1 GB RAM) shared with OpenSpeak — never touch the OpenSpeak services or its Caddy blocks. App at `/opt/automacao-vagas` as user `vagas`, systemd unit `vagas` (`MemoryMax=250M`), behind Caddy at https://vagasautomacao.duckdns.org (also the sslip.io alias). Deploy with `ssh -i <key> ubuntu@<vm> 'bash -s' < deploy/deploy.sh` (git fetch + reset, pip, Alembic, restart). The VM's own `data/curriculo_mestre.yaml`, `.env` and DB are the live ones; `git reset --hard` must never be pointed at a tree that tracks the master CV (it would delete it). No Docker, local LLMs/embeddings or headless browsers on the VM.

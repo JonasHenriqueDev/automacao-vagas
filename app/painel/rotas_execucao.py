@@ -116,6 +116,14 @@ def resumo_provedores(s) -> list[dict]:
     return resultado
 
 
+def _inteiro_ou_none(valor: str) -> int | None:
+    """Formulário GET envia `execucao=` vazio quando o campo não é preenchido: vazio ou inválido = sem filtro."""
+    try:
+        return int(valor) if valor.strip() else None
+    except ValueError:
+        return None
+
+
 def _consulta_chamadas(provedor: str, resultado: str, tipo: str, execucao: int | None):
     q = select(LlmChamada)
     if provedor:
@@ -133,10 +141,11 @@ def _consulta_chamadas(provedor: str, resultado: str, tipo: str, execucao: int |
 
 @router.get("/llm-log", response_class=HTMLResponse)
 def llm_log(request: Request, provedor: str = "", resultado: str = "", tipo: str = "",
-            execucao: int | None = None, pagina_n: int = 1):
+            execucao: str = "", pagina_n: int = 1):
     """Log completo de todas as chamadas de LLM: quem foi usado, quem falhou, por quê, quanto demorou."""
     sv = sv_de(request)
     pagina_n = max(1, pagina_n)
+    execucao = _inteiro_ou_none(execucao)
     with sv.fabrica() as s:
         base = _consulta_chamadas(provedor, resultado, tipo, execucao)
         total = s.scalar(select(func.count()).select_from(base.subquery())) or 0
@@ -156,8 +165,9 @@ def llm_log(request: Request, provedor: str = "", resultado: str = "", tipo: str
 
 @router.get("/llm-log.csv", response_class=PlainTextResponse)
 def llm_log_csv(request: Request, provedor: str = "", resultado: str = "", tipo: str = "",
-                execucao: int | None = None):
+                execucao: str = ""):
     sv = sv_de(request)
+    execucao = _inteiro_ou_none(execucao)
     saida = io.StringIO()
     w = csv.writer(saida)
     w.writerow(["id", "quando_utc", "provedor", "modelo", "tarefa", "sucesso", "tipo_erro", "http_status",
