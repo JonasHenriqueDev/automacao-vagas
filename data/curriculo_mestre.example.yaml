@@ -1,0 +1,222 @@
+# EXEMPLO de currículo mestre (dados fictícios). Copie para data/curriculo_mestre.yaml (ignorado pelo git)
+# e troque pelo seu histórico real. O CV gerado só pode usar o que estiver aqui: nunca invente.
+# `nivel` (1-5) é estimativa; `academico: true` pesa menos no match; `anos` é opcional.
+
+cargo_alvo:
+  pt: Desenvolvedor de Software Full Stack | Integrações e APIs
+  en: Full Stack Software Developer | Integrations and APIs
+
+inicio_carreira: "2023-01"   # conta a bolsa no laboratório (decisão do usuário)
+
+resumo_base:
+  pt: >-
+    Desenvolvedor de software full stack com foco em integrações e APIs REST, atuando com
+    Node.js, TypeScript, PHP/Laravel e NestJS em sistemas em produção.
+  en: >-
+    Full stack software developer focused on integrations and REST APIs, working with
+    Node.js, TypeScript, PHP/Laravel and NestJS on production systems.
+
+experiencias:
+  - id: emp_a
+    empresa: Empresa Exemplo A
+    cargo: {pt: Desenvolvedor de Software Full Stack, en: Full Stack Software Developer}
+    local: Cidade A, UF
+    inicio: "2026-02"
+    fim: null
+    tipo: profissional
+    tecnologias: [JavaScript, TypeScript, Node.js, Express, Angular, Next.js, Material UI, React Native, SQL,
+                  Stripe, Webhooks, HubSpot, Pipedrive, n8n, ZapSign, SMS, RCS, Postman, Swagger, IA Generativa]
+    bullets:
+      - id: emp_a.pagamentos
+        texto: >-
+          Integração de pagamentos com Stripe e webhooks, incluindo catálogo e mapeamento de produtos,
+          configuração de cobrança, assinaturas, upgrades e cancelamentos.
+        tags: [Stripe, Webhooks, pagamentos]
+      - id: emp_a.crm
+        texto: >-
+          Integração de HubSpot e Pipedrive com Stripe para sincronização de dados entre CRM e cobrança;
+          automação de fluxos com n8n.
+        tags: [HubSpot, Pipedrive, Stripe, n8n, CRM]
+      - id: emp_a.diagnostico
+        texto: >-
+          Diagnóstico e correção de falhas de integração, com análise de logs, erros de APIs e webhooks e
+          inconsistências de dados; testes de endpoints com Postman e documentação de APIs com Swagger.
+        tags: [Postman, Swagger, Webhooks, APIs REST]
+      - id: emp_a.comunicacao
+        texto: >-
+          Integração com serviços de SMS, RCS e chamadas de voz e assinatura digital com ZapSign.
+        tags: [SMS, RCS, ZapSign]
+      - id: emp_a.producao
+        texto: >-
+          Desenvolvimento de sistemas em produção com JavaScript e TypeScript, atendendo mais de 1000 usuários
+          ativos mensais, com levantamento de requisitos e alinhamento direto com clientes.
+        tags: [JavaScript, TypeScript, requisitos]
+      - id: emp_a.stack
+        texto: >-
+          Construção de interfaces web com Angular, Next.js e Material UI (MUI), aplicações mobile com
+          React Native e APIs REST com Node.js e Express.
+        tags: [Angular, Next.js, Material UI, React Native, Node.js, Express, APIs REST]
+      - id: emp_a.sql
+        texto: >-
+          Implementação de regras de negócio e otimização de consultas com procedures SQL; uso de agentes de
+          IA para automação de tarefas de desenvolvimento.
+        tags: [SQL, IA Generativa]
+
+  - id: emp_b
+    empresa: Empresa Exemplo B
+    cargo: {pt: Desenvolvedor de Software Full Stack, en: Full Stack Software Developer}
+    local: Cidade B, UF
+    inicio: "2025-01"
+    fim: "2025-12"
+    tipo: profissional
+    tecnologias: [PHP, Laravel, React, PostgreSQL, Redis, NestJS, Docker, Swagger, GitHub, Jira,
+                  Arquitetura Hexagonal, Multitenancy]
+    bullets:
+      - id: emp_b.erp
+        texto: >-
+          Desenvolvimento e manutenção de ERP para a construção civil com PHP, Laravel, React e PostgreSQL,
+          apoiando processos de mais de 250 funcionários, com módulos financeiro, gestão de funcionários e
+          estoque; correção de bugs e novas funcionalidades.
+        tags: [PHP, Laravel, React, PostgreSQL, ERP]
+      - id: emp_b.performance
+        texto: Otimização de consultas e da aplicação, com redução superior a 70% no tempo de resposta.
+        tags: [performance, PostgreSQL, SQL]
+      - id: emp_b.idempotencia
+        texto: >-
+          Implementação de idempotência com Redis para evitar processamento duplicado de requisições à API;
+          diagnóstico e correção de falhas de integração e inconsistências de dados.
+        tags: [Redis, idempotência, APIs REST]
+      - id: emp_b.nestjs
+        texto: >-
+          Desenvolvimento de API REST com NestJS, arquitetura hexagonal e multitenancy, com foco em
+          testabilidade e evolução independente dos módulos.
+        tags: [NestJS, Arquitetura Hexagonal, Multitenancy, APIs REST, testes]
+      - id: emp_b.ambiente
+        texto: >-
+          Padronização do ambiente com Docker e documentação de APIs com Swagger; uso de GitHub e Jira no
+          fluxo de desenvolvimento.
+        tags: [Docker, Swagger, GitHub, Jira]
+
+  - id: freelance
+    empresa: Freelancer, plataforma de cursos online
+    cargo: {pt: Desenvolvedor Backend, en: Backend Developer}
+    local: Remoto
+    inicio: "2024-04"
+    fim: "2024-12"
+    tipo: profissional
+    tecnologias: [PHP, Laravel, PostgreSQL, Laravel Sanctum, RBAC, Amazon S3, Docker, AWS Lambda, Bref]
+    bullets:
+      - id: freelance.backend
+        texto: >-
+          Desenvolvimento do backend em PHP, Laravel e PostgreSQL para plataforma de videoaulas com mais de
+          150 usuários ativos, incluindo API REST, playlists e gestão de usuários e permissões.
+        tags: [PHP, Laravel, PostgreSQL, APIs REST]
+      - id: freelance.auth
+        texto: >-
+          Implementação de autenticação com Laravel Sanctum e autorização por perfis (RBAC); integração com
+          Amazon S3 para armazenamento de imagens.
+        tags: [Laravel Sanctum, RBAC, Amazon S3]
+      - id: freelance.deploy
+        texto: >-
+          Containerização com Docker e implantação na AWS com Lambda (Bref PHP), com redução de
+          aproximadamente 50% no custo de hospedagem.
+        tags: [Docker, AWS Lambda, Bref, AWS]
+
+  - id: monitoria
+    empresa: Universidade Exemplo
+    cargo: {pt: Monitor de Qualidade de Software, en: Software Quality Teaching Assistant}
+    local: Cidade C, UF
+    inicio: "2026-03"
+    fim: "2026-07"
+    tipo: monitoria
+    conta_experiencia: false
+    tecnologias: []
+    bullets:
+      - id: monitoria.apoio
+        texto: >-
+          Apoio a alunos na produção de trabalhos e artigos científicos e explicações teóricas dos
+          conteúdos da disciplina de Qualidade de Software.
+        tags: [qualidade de software]
+
+  - id: lab
+    empresa: Laboratório de Pesquisa Exemplo (Universidade Exemplo)
+    cargo: {pt: Desenvolvedor Web (bolsista), en: Web Developer (scholarship)}
+    local: Cidade C, UF
+    inicio: "2023-01"
+    fim: "2024-02"
+    tipo: bolsa
+    tecnologias: [PHP, Laravel, MySQL]
+    bullets:
+      - id: lab.sistema
+        texto: >-
+          Desenvolvimento em Laravel de um sistema de gestão de programas acadêmicos (estágios, editais etc.),
+          usado por duas universidades; modelagem de banco de dados, regras de negócio e digitalização
+          de processos administrativos.
+        tags: [Laravel, PHP, modelagem de banco de dados]
+
+formacao:
+  - instituicao: Universidade Exemplo
+    curso: {pt: Bacharelado em Engenharia de Software, en: B.Sc. in Software Engineering}
+    local: Cidade C, UF
+    inicio: "2022-07"
+    fim: "2026-08"
+    detalhes:
+      pt: Projetos acadêmicos com Java, Spring Boot e Kafka (APIs REST, orientação a objetos, arquitetura em camadas, padrões de projeto).
+      en: Academic projects with Java, Spring Boot and Kafka (REST APIs, object-oriented design, layered architecture, design patterns).
+
+certificacoes:
+  - {pt: "PHP do Zero: Criando sistemas com PHP e MySQL na prática", en: "PHP do Zero: building systems with PHP and MySQL"}
+  - {pt: "EF SET English Certificate 56/100 (B2 Upper Intermediate)", en: "EF SET English Certificate 56/100 (B2 Upper Intermediate)"}
+  - {pt: "Certificado de participação, Semana Universitária da Universidade Exemplo 2024", en: "Participation certificate, Universidade Exemplo University Week 2024"}
+
+idiomas:
+  - {pt: "Português: nativo", en: "Portuguese: native"}
+  - {pt: "Inglês: intermediário avançado (B2)", en: "English: upper-intermediate (B2)"}
+
+skills:
+  # categoria; nivel 1-5 (estimativa); academico: peso menor no match e nunca vira "experiência profissional"
+  - {nome: JavaScript, categoria: Linguagens, nivel: 4}
+  - {nome: TypeScript, categoria: Linguagens, nivel: 4}
+  - {nome: PHP, categoria: Linguagens, nivel: 4}
+  - {nome: SQL, categoria: Linguagens, nivel: 4}
+  - {nome: Java, categoria: Linguagens, nivel: 2, academico: true}
+  - {nome: Node.js, categoria: Back-end, nivel: 4}
+  - {nome: Express, categoria: Back-end, nivel: 4}
+  - {nome: NestJS, categoria: Back-end, nivel: 4}
+  - {nome: Laravel, categoria: Back-end, nivel: 4}
+  - {nome: Laravel Sanctum, categoria: Back-end, nivel: 3}
+  - {nome: APIs REST, categoria: Back-end, nivel: 5}
+  - {nome: Webhooks, categoria: Back-end, nivel: 4}
+  - {nome: Arquitetura Hexagonal, categoria: Back-end, nivel: 3}
+  - {nome: Multitenancy, categoria: Back-end, nivel: 3}
+  - {nome: RBAC, categoria: Back-end, nivel: 3}
+  - {nome: Idempotência, categoria: Back-end, nivel: 3}
+  - {nome: Spring Boot, categoria: Back-end, nivel: 2, academico: true}
+  - {nome: Angular, categoria: Front-end, nivel: 3}
+  - {nome: Next.js, categoria: Front-end, nivel: 3}
+  - {nome: React, categoria: Front-end, nivel: 3}
+  - {nome: Material UI, categoria: Front-end, nivel: 3}
+  - {nome: React Native, categoria: Mobile, nivel: 3}
+  - {nome: PostgreSQL, categoria: Bancos e cache, nivel: 4}
+  - {nome: MySQL, categoria: Bancos e cache, nivel: 3}
+  - {nome: Redis, categoria: Bancos e cache, nivel: 3}
+  - {nome: Stripe, categoria: Integrações, nivel: 4}
+  - {nome: HubSpot, categoria: Integrações, nivel: 3}
+  - {nome: Pipedrive, categoria: Integrações, nivel: 3}
+  - {nome: ZapSign, categoria: Integrações, nivel: 3}
+  - {nome: SMS, categoria: Integrações, nivel: 3}
+  - {nome: RCS, categoria: Integrações, nivel: 3}
+  - {nome: n8n, categoria: Integrações, nivel: 3}
+  - {nome: Docker, categoria: Infra e DevOps, nivel: 4}
+  - {nome: AWS, categoria: Infra e DevOps, nivel: 3}
+  - {nome: AWS Lambda, categoria: Infra e DevOps, nivel: 3}
+  - {nome: Amazon S3, categoria: Infra e DevOps, nivel: 3}
+  - {nome: Testes, categoria: Qualidade, nivel: 3}
+  - {nome: Qualidade de Software, categoria: Qualidade, nivel: 3}
+  - {nome: Kafka, categoria: Mensageria, nivel: 2, academico: true}
+  - {nome: Git, categoria: Ferramentas, nivel: 4}
+  - {nome: GitHub, categoria: Ferramentas, nivel: 4}
+  - {nome: Jira, categoria: Ferramentas, nivel: 3}
+  - {nome: Postman, categoria: Ferramentas, nivel: 4}
+  - {nome: Swagger, categoria: Ferramentas, nivel: 4}
+  - {nome: IA Generativa, categoria: IA, nivel: 3, sinonimos: [agentes de IA]}

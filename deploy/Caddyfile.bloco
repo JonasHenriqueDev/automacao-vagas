@@ -1,0 +1,8 @@
+# ADICIONAR ao final de /etc/caddy/Caddyfile (sem alterar os blocos do OpenSpeak).
+# Antes: sudo caddy validate --config /etc/caddy/Caddyfile   Depois: sudo systemctl reload caddy
+# O painel escuta só em 127.0.0.1:8090; esta é a única porta de entrada (80/443 já abertas).
+# O domínio duckdns é o principal; o sslip.io segue como alternativa (certificado emitido pelo Caddy para ambos).
+vagasautomacao.duckdns.org, vagas.136-248-73-254.sslip.io {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8090
+}

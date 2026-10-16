@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Para revisar{% endblock %}
+{% block conteudo %}
+<div class="grade">
+  <div class="card metrica"><b>{{ met.coletadas_hoje }}</b><span>coletadas hoje ({{ met.coletadas_7d }} em 7 dias)</span></div>
+  <div class="card metrica"><b>{{ met.acima_limite }}</b><span>acima do limite ({{ '%.0f'|format(limite) }}%)</span></div>
+  <div class="card metrica"><b>{{ met.aplicadas_semana }}</b><span>aplicadas na semana</span></div>
+  <div class="card metrica"><b>{{ (met.taxa_resposta ~ '%') if met.taxa_resposta is not none else '—' }}</b><span>taxa de resposta</span></div>
+</div>
+
+<div class="linha" style="margin-bottom:10px">
+  <h1 style="margin:0">{{ 'Descartadas' if status == 'descartado' else 'Para revisar' }}</h1>
+  <span class="suave">
+    {% if status == 'novo' %}
+      {% if maxima %}{% if antigas %}mostrando também vagas com mais de {{ '%g'|format(maxima) }} h ·
+        <a href="/?todas={{ todas }}">só as últimas {{ '%g'|format(maxima) }} h</a>
+      {% else %}só vagas abertas nas últimas {{ '%g'|format(maxima) }} h ·
+        <a href="/?todas={{ todas }}&antigas=1">incluir mais antigas</a>{% endif %} ·{% endif %}
+      <a href="/?todas={{ 0 if todas else 1 }}&antigas={{ antigas }}">{{ 'só acima do limite' if todas else 'incluir abaixo do limite' }}</a> ·
+      <a href="/?status=descartado">ver descartadas</a>
+    {% else %}<a href="/">voltar para revisar</a>{% endif %}
+  </span>
+</div>
+
+{% for it in itens %}
+  {% with m=it.m, v=it.v, det=it.det, avisos=it.avisos, cv=it.cv %}{% include "_linha_vaga.html" %}{% endwith %}
+{% else %}
+  <div class="card suave">Nenhuma vaga nova nas últimas {{ '%g'|format(maxima) if maxima else '—' }} h. Use “Rodar agora” para buscar de novo.</div>
+{% endfor %}
+{% endblock %}

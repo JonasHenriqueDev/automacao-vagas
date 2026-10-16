@@ -1,0 +1,32 @@
+<article class="card vaga" id="vaga-{{ v.id }}">
+  <div class="score">{{ '%.0f'|format(m.score) }}%<small>{{ 'preliminar' if m.preliminar else m.modo }}</small></div>
+  <div>
+    <h3><a href="/vaga/{{ v.id }}">{{ v.titulo }}</a></h3>
+    <div class="suave">
+      <span class="idade {{ 'nova' if v.data_publicacao and (v.data_publicacao|idade).startswith('há') and 'dia' not in (v.data_publicacao|idade) }}" title="{{ v.data_publicacao|hl('%d/%m/%Y %H:%M') }}">aberta {{ v.data_publicacao|idade }}</span>
+      · {{ v.empresa or 'empresa n/d' }}{% if v.local %} · {{ v.local }}{% endif %} · {{ v.fonte }}
+    </div>
+    <div class="chips">
+      {% if not v.descricao_completa %}<span class="chip aviso">descrição incompleta</span>{% endif %}
+      {% if avisos %}<span class="chip aviso" title="O texto da vaga contém instruções dirigidas a robôs/IA">⚠ instrução suspeita</span>{% endif %}
+      {% for t in det.get('bateram', [])[:10] %}<span class="chip bateu">{{ t }}</span>{% endfor %}
+      {% for t in det.get('faltaram', [])[:8] %}<span class="chip faltou">{{ t }}</span>{% endfor %}
+    </div>
+    <div class="acoes">
+      {% if v.url.startswith(('http://', 'https://')) %}
+        <a class="botao" href="{{ v.url }}" target="_blank" rel="noopener noreferrer">Vaga original ↗</a>
+      {% endif %}
+      {% if m.status == 'novo' %}
+        {% if cv %}<a class="botao" href="/cv/{{ cv.id }}.pdf" target="_blank" rel="noopener">CV (PDF)</a>{% endif %}
+        <form method="post" action="/vaga/{{ v.id }}/aplicar" target="_blank" rel="noopener"
+              onsubmit="setTimeout(function(){location.reload()}, 900)">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="primario">Aplicar ↗</button>
+        </form>
+        <button class="perigo" hx-post="/vaga/{{ v.id }}/descartar" hx-target="#vaga-{{ v.id }}" hx-swap="outerHTML">Descartar</button>
+      {% else %}
+        <button hx-post="/vaga/{{ v.id }}/restaurar" hx-target="#vaga-{{ v.id }}" hx-swap="outerHTML">Restaurar</button>
+      {% endif %}
+      <a href="/vaga/{{ v.id }}">Detalhes</a>
+    </div>
+  </div>
+</article>

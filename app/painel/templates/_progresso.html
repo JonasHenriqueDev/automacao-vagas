@@ -1,0 +1,49 @@
+<div id="exec-{{ ex.id }}"{% if ex.status == 'rodando' %} hx-get="/execucoes/{{ ex.id }}/progresso?nivel={{ nivel }}&etapa={{ etapa_filtro }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <div class="card">
+    <div class="progresso-topo">
+      <b class="status-{{ ex.status }}">
+        {% if ex.status == 'rodando' %}⏳ Em andamento{% elif ex.status == 'concluida' %}✓ Concluída{% else %}✗ Interrompida por erro{% endif %}
+      </b>
+      <span>{{ '%.0f'|format(ex.progresso) }}%</span>
+    </div>
+    <div class="barra {{ 'ok' if ex.status == 'concluida' and not ex.erros else ('erro' if ex.status == 'erro' else '') }}"
+         role="progressbar" aria-valuenow="{{ '%.0f'|format(ex.progresso) }}" aria-valuemin="0" aria-valuemax="100">
+      <span style="width: {{ '%.1f'|format(ex.progresso) }}%"></span>
+    </div>
+    <div class="suave" style="margin-top:8px">{{ ex.etapa or '—' }}</div>
+    <div class="suave" style="margin-top:4px">
+      Início {{ ex.inicio|hl('%d/%m %H:%M:%S') }} · duração {{ ex.inicio|duracao(ex.fim) }}
+      · {{ ex.vagas_coletadas }} candidata(s), {{ ex.vagas_novas }} nova(s)
+      · LLM: {{ chamadas }} chamada(s), {{ chamadas_ok }} com sucesso, {{ chamadas - chamadas_ok }} falha(s)
+      · log: {{ contagem.get('info', 0) }} info, <span class="nivel-aviso">{{ contagem.get('aviso', 0) }} aviso(s)</span>,
+        <span class="nivel-erro">{{ contagem.get('erro', 0) }} erro(s)</span>
+    </div>
+    {% if ex.erros %}<div class="erro" style="margin-top:8px; white-space:pre-wrap">{{ ex.erros }}</div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="linha" style="margin-bottom:8px">
+      <b>Log completo</b>
+      <span class="suave">filtrar:
+        <a href="/execucoes/{{ ex.id }}">tudo</a> ·
+        <a href="/execucoes/{{ ex.id }}?nivel=erro">erros</a> ·
+        <a href="/execucoes/{{ ex.id }}?nivel=aviso">avisos</a>
+        {% for e in etapas %} · <a href="/execucoes/{{ ex.id }}?etapa={{ e }}">{{ e }}</a>{% endfor %}
+      </span>
+      <a href="/execucoes/{{ ex.id }}/log.txt">baixar .log</a>
+    </div>
+    {% if total > mostrando %}<div class="suave">Mostrando as {{ mostrando }} linhas mais recentes de {{ total }} (o arquivo .log tem todas).</div>{% endif %}
+    <table class="log">
+      {% for l in logs %}
+      <tr>
+        <td class="suave" style="white-space:nowrap">{{ l.criado_em|hl('%H:%M:%S') }}</td>
+        <td class="nivel-{{ l.nivel }}" style="white-space:nowrap">{{ l.nivel }}</td>
+        <td class="suave">{{ l.etapa }}</td>
+        <td class="msg">{{ l.mensagem }}</td>
+      </tr>
+      {% else %}
+      <tr><td class="suave">Sem linhas para este filtro ainda.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>

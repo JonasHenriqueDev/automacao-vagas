@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block titulo %}Log das LLMs{% endblock %}
+{% block conteudo %}
+<p><a href="/integracoes">← integrações</a></p>
+<h1>Log completo das chamadas de LLM</h1>
+<form method="get" action="/llm-log" class="card linha">
+  <div><label for="provedor">Provedor</label>
+    <select id="provedor" name="provedor"><option value="">todos</option>
+      {% for p in provedores %}<option {{ 'selected' if p == provedor }}>{{ p }}</option>{% endfor %}</select></div>
+  <div><label for="resultado">Resultado</label>
+    <select id="resultado" name="resultado">
+      <option value="">todos</option><option value="ok" {{ 'selected' if resultado == 'ok' }}>sucesso</option>
+      <option value="falha" {{ 'selected' if resultado == 'falha' }}>falha</option></select></div>
+  <div><label for="tipo">Tipo de erro</label>
+    <select id="tipo" name="tipo"><option value="">todos</option>
+      {% for t in tipos %}<option {{ 'selected' if t == tipo }}>{{ t }}</option>{% endfor %}</select></div>
+  <div><label for="execucao">Execução #</label><input id="execucao" name="execucao" type="number" min="1" value="{{ execucao or '' }}" style="width:90px"></div>
+  <button class="primario">Filtrar</button>
+  <a class="botao" href="/llm-log.csv?provedor={{ provedor }}&resultado={{ resultado }}&tipo={{ tipo }}{% if execucao %}&execucao={{ execucao }}{% endif %}">Baixar CSV completo</a>
+</form>
+
+<div class="suave" style="margin-bottom:8px">{{ total }} chamada(s) · página {{ pagina_n }} de {{ paginas }}
+  {% if pagina_n > 1 %}· <a href="/llm-log?provedor={{ provedor }}&resultado={{ resultado }}&tipo={{ tipo }}&pagina_n={{ pagina_n - 1 }}{% if execucao %}&execucao={{ execucao }}{% endif %}">← anterior</a>{% endif %}
+  {% if pagina_n < paginas %}· <a href="/llm-log?provedor={{ provedor }}&resultado={{ resultado }}&tipo={{ tipo }}&pagina_n={{ pagina_n + 1 }}{% if execucao %}&execucao={{ execucao }}{% endif %}">próxima →</a>{% endif %}</div>
+<div class="card" style="overflow-x:auto">
+<table>
+  <tr><th>Quando</th><th>Provedor / modelo</th><th>Tarefa</th><th>Vaga</th><th>Exec.</th><th>Resultado</th><th>HTTP</th><th>Tempo</th><th>Tokens</th></tr>
+  {% for c in chamadas %}
+  <tr>
+    <td style="white-space:nowrap">{{ c.criado_em|hl('%d/%m %H:%M:%S') }}</td>
+    <td><b>{{ c.provedor }}</b><div class="suave">{{ c.modelo }}</div></td>
+    <td>{{ c.tarefa }}{% if c.tentativa > 1 %} <span class="suave">(tentativa {{ c.tentativa }})</span>{% endif %}</td>
+    <td>{% if c.vaga_id %}<a href="/vaga/{{ c.vaga_id }}">#{{ c.vaga_id }}</a><div class="suave">{{ (vagas.get(c.vaga_id) or '')[:40] }}</div>{% else %}—{% endif %}</td>
+    <td>{% if c.execucao_id %}<a href="/execucoes/{{ c.execucao_id }}">#{{ c.execucao_id }}</a>{% else %}—{% endif %}</td>
+    <td>
+      {% if c.sucesso %}<span class="ok">✓ sucesso</span>
+      {% else %}<span class="erro">✗ {{ c.tipo_erro or 'falha' }}</span>
+        {% if c.erro %}<details><summary>erro completo</summary><pre>{{ c.erro }}</pre></details>{% endif %}{% endif %}
+    </td>
+    <td>{{ c.http_status or '—' }}</td>
+    <td style="white-space:nowrap">{{ '%.1f'|format(c.duracao_ms / 1000) }} s</td>
+    <td style="white-space:nowrap">{{ c.tokens_in }} / {{ c.tokens_out }}</td>
+  </tr>
+  {% else %}<tr><td colspan="9" class="suave">Nenhuma chamada registrada para este filtro.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

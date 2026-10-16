@@ -1,0 +1,29 @@
+[Unit]
+Description=Automacao de vagas (painel + agendador)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=vagas
+Group=vagas
+WorkingDirectory=/opt/automacao-vagas
+EnvironmentFile=/opt/automacao-vagas/.env
+ExecStart=/opt/automacao-vagas/.venv/bin/python -m app servir
+Restart=on-failure
+RestartSec=10
+
+# Limites obrigatórios (a VM também roda o OpenSpeak, que tem prioridade)
+MemoryMax=250M
+CPUQuota=50%
+Nice=10
+IOSchedulingClass=idle
+
+# Endurecimento
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/automacao-vagas/data /opt/automacao-vagas/saida
+
+[Install]
+WantedBy=multi-user.target

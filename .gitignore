@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Segredos e dados pessoais: nunca commitar
+.env
+config.yaml
+data/dados_pessoais.yaml
+*.db
+*.db-journal
+saida/
+backups/
+.cache/
+*.db-wal
+*.db-shm
+
+# Dados pessoais e planejamento: ficam só locais (há versões de exemplo no repositório)
+data/curriculo_mestre.yaml
+PLANO-automacao-vagas.md

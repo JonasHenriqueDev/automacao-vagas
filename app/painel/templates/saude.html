@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titulo %}Saúde{% endblock %}
+{% block conteudo %}
+<h1>Saúde</h1>
+<div class="grade">
+  <div class="card metrica"><b>{{ proxima.strftime('%d/%m %H:%M') if proxima else '—' }}</b><span>próxima execução</span></div>
+  <div class="card metrica"><b>{{ 'rodando' if rodando else 'ocioso' }}</b><span>estado agora</span></div>
+</div>
+
+<h2>Últimas execuções <a href="/execucoes" style="font-size:.85rem">(ver todas e logs)</a></h2>
+<div class="card">
+<table>
+  <tr><th>Início</th><th>Origem</th><th>Duração</th><th>Coletadas</th><th>Novas</th><th>Erros</th></tr>
+  {% for e in execs %}
+  <tr>
+    <td><a href="/execucoes/{{ e.id }}">#{{ e.id }}</a> {{ e.inicio|hl('%d/%m %H:%M') }}</td><td>{{ e.origem }}</td>
+    <td>{{ e.inicio|duracao(e.fim) }}</td>
+    <td>{{ e.vagas_coletadas }}</td><td>{{ e.vagas_novas }}</td>
+    <td>{% if e.erros %}<span class="erro">{{ e.erros[:300] }}</span>{% else %}<span class="ok">ok</span>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="suave">Nenhuma execução ainda.</td></tr>{% endfor %}
+</table>
+</div>
+
+<h2>Uso das LLMs (7 dias)</h2>
+<div class="card">
+<table>
+  <tr><th>Provedor</th><th>Chamadas</th><th>Sucesso</th><th>Tokens (entrada/saída)</th></tr>
+  {% for p, n, ok, tin, tout in uso %}
+  <tr><td>{{ p }}</td><td>{{ n }}</td><td>{{ ok or 0 }}</td><td>{{ tin }} / {{ tout }}</td></tr>
+  {% else %}<tr><td colspan="4" class="suave">Nenhuma chamada ainda.</td></tr>{% endfor %}
+</table>
+</div>
+
+{% if estados %}
+<h2>Provedores</h2>
+<div class="card">
+  {% for st in estados %}<div><b>{{ st.provedor }}</b>:
+    {% if st.desativado %}<span class="erro">desativado ({{ st.motivo }})</span>
+    {% elif st.cooldown_ate and st.cooldown_ate > agora %}cooldown até {{ st.cooldown_ate.strftime('%d/%m %H:%M') }} UTC
+    {% else %}<span class="ok">disponível</span>{% endif %}</div>{% endfor %}
+</div>
+{% endif %}
+
+<h2>Últimos erros de LLM <a href="/llm-log?resultado=falha" style="font-size:.85rem">(log completo)</a></h2>
+<div class="card">
+  {% for c in erros %}<div class="suave">{{ c.criado_em|hl('%d/%m %H:%M') }} · {{ c.provedor }}/{{ c.modelo }} · {{ c.tarefa }}: {{ c.erro[:200] }}</div>
+  {% else %}<span class="suave">Sem erros recentes.</span>{% endfor %}
+</div>
+{% endblock %}

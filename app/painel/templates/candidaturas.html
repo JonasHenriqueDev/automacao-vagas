@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Candidaturas{% endblock %}
+{% block conteudo %}
+<h1>Candidaturas</h1>
+{% for l in linhas %}
+<form class="card" method="post" action="/candidaturas/{{ l.a.id }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="linha">
+    <div style="flex:1 1 280px">
+      <b><a href="/vaga/{{ l.v.id }}">{{ l.v.titulo }}</a></b>
+      <div class="suave">{{ l.v.empresa or 'empresa n/d' }} · aplicada em {{ l.a.data.strftime('%d/%m/%Y') }}
+        {% if l.a.curriculo_id %}· <a href="/cv/{{ l.a.curriculo_id }}.pdf" target="_blank" rel="noopener">CV enviado</a>{% endif %}</div>
+    </div>
+    <div>
+      <label for="st{{ l.a.id }}">Status</label>
+      <select id="st{{ l.a.id }}" name="status">
+        {% for o in status_opcoes %}<option value="{{ o }}" {{ 'selected' if o == l.a.status }}>{{ o }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <label for="nt{{ l.a.id }}">Notas</label>
+  <textarea id="nt{{ l.a.id }}" name="notas" style="min-height:60px">{{ l.a.notas }}</textarea>
+  <div class="acoes"><button class="primario">Salvar</button></div>
+</form>
+{% else %}
+<div class="card suave">Nenhuma candidatura ainda. Ao clicar em “Aplicar” numa vaga, ela aparece aqui.</div>
+{% endfor %}
+{% endblock %}

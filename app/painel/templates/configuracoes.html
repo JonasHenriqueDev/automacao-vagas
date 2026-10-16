@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Configurações{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+
+<h2>Agendamento</h2>
+<form class="card" method="post" action="/configuracoes/agendamento">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="cron">Expressão cron ({{ fuso }})</label>
+  <input id="cron" name="cron" value="{{ cron }}" required pattern="\S+( \S+){4}" style="width:260px">
+  <span class="suave">Padrão: <code>0 */3 * * *</code> (a cada 3 horas)</span>
+  <div class="suave" style="margin-top:6px">Próxima execução prevista: <b>{{ proxima.strftime('%d/%m/%Y %H:%M') if proxima else 'agendador parado' }}</b></div>
+  <div class="acoes"><button class="primario">Salvar e reagendar</button></div>
+</form>
+<form class="card" method="post" action="/rodar-agora">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button {{ 'disabled' if rodando }}>{{ 'Execução em andamento…' if rodando else 'Rodar agora' }}</button>
+  <span class="suave">Coleta, pontua e gera CVs agora, sem esperar o agendamento.</span>
+</form>
+
+<h2>Match</h2>
+<form class="card" method="post" action="/configuracoes/match">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="linha">
+    <div><label for="limite">Limite de match (%)</label><input id="limite" name="limite" type="number" step="1" min="0" max="100" value="{{ limite }}" style="width:90px"></div>
+    {% for k, nome in [('obrigatorios','Obrigatórios'),('desejaveis','Desejáveis'),('senioridade','Senioridade'),('local_salario','Local/salário')] %}
+    <div><label for="peso_{{ k }}">Peso: {{ nome }}</label><input id="peso_{{ k }}" name="peso_{{ k }}" type="number" step="0.05" min="0" value="{{ pesos[k] }}" style="width:90px"></div>
+    {% endfor %}
+  </div>
+  <div class="acoes"><button class="primario">Salvar</button></div>
+</form>
+
+<h2>Fontes e filtros</h2>
+<form class="card" method="post" action="/configuracoes/fontes">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="idade_max">Idade máxima da vaga (horas; 0 = sem limite). Vagas abertas há mais tempo não são gravadas nem mostradas.</label>
+  <input id="idade_max" name="idade_max" type="number" min="0" step="1" value="{{ idade_max }}" style="width:100px">
+  <label for="repos">Repositórios de vagas no GitHub (um por linha: <code>dono/repo | Label1, Label2</code>)</label>
+  <textarea id="repos" name="repos" style="min-height:90px">{{ repos }}</textarea>
+  <label for="bloqueadas">Palavras bloqueadas (uma por linha; eliminam a vaga se aparecerem no título ou na descrição)</label>
+  <textarea id="bloqueadas" name="bloqueadas" style="min-height:70px">{{ bloqueadas }}</textarea>
+  <div class="acoes"><button class="primario">Salvar</button></div>
+</form>
+
+<h2>Ranking de provedores de LLM</h2>
+<form class="card" method="post" action="/configuracoes/ranking">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <p class="suave">Os modelos mudam com frequência: use o botão “Testar” em Integrações para listar os disponíveis em cada provedor. Provedor sem chave é pulado.</p>
+  {% for tarefa, itens in rankings.items() %}
+  <h3 style="font-size:1rem">{{ titulos[tarefa] }}</h3>
+  <table>
+    <tr><th>Ordem</th><th>Provedor</th><th>Modelo</th><th>Ativo</th></tr>
+    {% for it in itens %}
+    <tr>
+      <td><input name="{{ tarefa }}_{{ loop.index0 }}_ordem" type="number" min="1" value="{{ loop.index }}" style="width:60px"></td>
+      <td>{{ it.provedor }}</td>
+      <td><input name="{{ tarefa }}_{{ loop.index0 }}_modelo" value="{{ it.modelo }}" style="width:100%"></td>
+      <td><input name="{{ tarefa }}_{{ loop.index0 }}_ativo" type="checkbox" {{ 'checked' if it.ativo }}></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endfor %}
+  <div class="acoes"><button class="primario">Salvar ranking</button></div>
+</form>
+{% endblock %}

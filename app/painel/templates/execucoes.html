@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titulo %}Execuções{% endblock %}
+{% block conteudo %}
+<div class="linha" style="margin-bottom:10px">
+  <h1 style="margin:0">Execuções</h1>
+  <form method="post" action="/rodar-agora"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primario">Rodar agora</button></form>
+</div>
+<div class="card">
+<table>
+  <tr><th>#</th><th>Início</th><th>Origem</th><th>Estado</th><th>Progresso</th><th>Duração</th><th>Novas</th><th></th></tr>
+  {% for e in execs %}
+  <tr>
+    <td><a href="/execucoes/{{ e.id }}">#{{ e.id }}</a></td>
+    <td>{{ e.inicio|hl('%d/%m %H:%M') }}</td>
+    <td>{{ e.origem }}</td>
+    <td class="status-{{ e.status }}">{{ e.status }}</td>
+    <td style="min-width:120px"><div class="barra"><span style="width: {{ '%.0f'|format(e.progresso) }}%"></span></div></td>
+    <td>{{ e.inicio|duracao(e.fim) }}</td>
+    <td>{{ e.vagas_novas }}</td>
+    <td>{% if e.erros %}<span class="erro" title="{{ e.erros[:300] }}">⚠ erros</span>{% endif %} <a href="/execucoes/{{ e.id }}">ver log</a></td>
+  </tr>
+  {% else %}<tr><td colspan="8" class="suave">Nenhuma execução ainda.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

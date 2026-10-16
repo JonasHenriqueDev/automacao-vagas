@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block titulo %}Vagas{% endblock %} · Automação de vagas</title>
+  <link rel="stylesheet" href="/static/estilo.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
+{% if usuario %}
+<header class="topo"><nav>
+  {% set caminho = request.url.path %}
+  <a class="item {{ 'ativo' if caminho == '/' or caminho.startswith('/vaga') }}" href="/">Para revisar</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/candidaturas') }}" href="/candidaturas">Candidaturas</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/execucoes') }}" href="/execucoes">Execuções</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/configuracoes') }}" href="/configuracoes">Configurações</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/integracoes') }}" href="/integracoes">Integrações</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/saude') }}" href="/saude">Saúde</a>
+  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Sair</button></form>
+</nav></header>
+{% endif %}
+<main>
+  {% if flash %}<div class="flash" role="status">{{ flash }}</div>{% endif %}
+  {% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>

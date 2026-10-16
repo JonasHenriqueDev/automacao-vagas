@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block titulo %}Execução #{{ ex.id }}{% endblock %}
+{% block conteudo %}
+<p><a href="/execucoes">← execuções</a></p>
+<h1>Execução #{{ ex.id }} <span class="suave">({{ ex.origem }})</span></h1>
+{% include "_progresso.html" %}
+{% endblock %}

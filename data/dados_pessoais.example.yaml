@@ -1,0 +1,8 @@
+# Copie para dados_pessoais.yaml (ignorado pelo git) e preencha.
+nome: Seu Nome
+email: voce@example.com
+telefone: "(00) 00000-0000"
+localizacao: Cidade, UF, Brasil
+links:
+  - {rotulo: GitHub, url: github.com/usuario}
+  - {rotulo: LinkedIn, url: linkedin.com/in/usuario}

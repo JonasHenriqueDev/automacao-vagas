@@ -1,0 +1,48 @@
+# Copie para config.yaml (ignorado pelo git). Tudo aqui é opcional: o que faltar usa o padrão de app/config.py.
+# Prioridade: valor salvo pelo painel (banco) > config.yaml > padrão.
+
+agendamento:
+  cron: "0 */3 * * *"          # a cada 3 horas, no minuto 0 (editável pelo painel)
+  fuso: "America/Sao_Paulo"
+
+match:
+  limite: 70                   # % mínimo para gerar CV e notificar
+  pesos: {obrigatorios: 0.6, desejaveis: 0.2, senioridade: 0.1, local_salario: 0.1}
+
+fontes:
+  github_issues:
+    ativo: true
+    min_intervalo_horas: 3
+    repos:
+      - {repo: backend-br/vagas, labels: [Remoto]}
+      - {repo: frontendbr/vagas, labels: [Remoto]}
+      - {repo: phpdevbr/vagas, labels: []}
+      - {repo: nodejsdevbr/vagas, labels: []}
+  email:                       # alertas do LinkedIn (use uma conta dedicada, com senha de app)
+    ativo: false
+    servidor: imap.gmail.com
+    porta: 993
+    usuario: ""
+    pasta: INBOX
+
+# Os nomes de modelo mudam com frequência: confira com o botão "Testar" em Integrações.
+llm:
+  ranking:
+    reescrita_cv:
+      - {provedor: gemini, modelo: gemini-flash-latest, ativo: true}
+      - {provedor: groq, modelo: openai/gpt-oss-120b, ativo: true}
+      - {provedor: github, modelo: openai/gpt-4.1, ativo: true}
+      - {provedor: mistral, modelo: mistral-large-latest, ativo: true}
+      - {provedor: openrouter, modelo: "openai/gpt-oss-120b:free", ativo: true}
+    extracao:
+      - {provedor: groq, modelo: llama-3.3-70b-versatile, ativo: true}
+      - {provedor: cloudflare, modelo: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", ativo: true}
+      - {provedor: gemini, modelo: gemini-flash-lite-latest, ativo: true}
+      - {provedor: mistral, modelo: mistral-small-latest, ativo: true}
+      - {provedor: github, modelo: openai/gpt-4.1-mini, ativo: true}
+      - {provedor: openrouter, modelo: "openai/gpt-oss-20b:free", ativo: true}
+
+painel:
+  porta: 8090
+  url_publica: "https://vagasautomacao.duckdns.org"
+  cookie_seguro: true          # false só para testar em http://localhost

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block titulo %}{{ v.titulo }}{% endblock %}
+{% block conteudo %}
+<p><a href="/">← voltar</a></p>
+<h1>{{ v.titulo }}</h1>
+<div class="suave"><span class="idade" title="{{ v.data_publicacao|hl('%d/%m/%Y %H:%M') }}">aberta {{ v.data_publicacao|idade }}</span> · {{ v.empresa or 'empresa n/d' }}{% if v.local %} · {{ v.local }}{% endif %} · {{ v.fonte }} · {{ v.modelo_trabalho }}
+  · <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">vaga original ↗</a></div>
+
+{% if avisos %}
+<div class="flash" style="margin-top:12px">
+  <b>⚠ A descrição contém trechos que parecem instruções para robôs/IA.</b> Pode ser um teste do recrutador; leia a vaga e decida.
+  <ul>{% for a in avisos %}<li>{{ a }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if v.eliminada_motivo %}<div class="flash" style="margin-top:12px">Eliminada pelos filtros: {{ v.eliminada_motivo }}</div>{% endif %}
+
+{% if m %}
+<h2>Compatibilidade: {{ '%.0f'|format(m.score) }}% <span class="suave">({{ 'preliminar, sem descrição completa' if m.preliminar else 'modo ' ~ m.modo }})</span></h2>
+<div class="card">
+  <div class="chips">
+    {% for t in det.get('bateram', []) %}<span class="chip bateu">✓ {{ t }}</span>{% endfor %}
+    {% for t in det.get('faltaram', []) %}<span class="chip faltou">✗ {{ t }}</span>{% endfor %}
+  </div>
+  {% if det.get('bateram_desejaveis') or det.get('faltaram_desejaveis') %}
+  <div class="suave">Desejáveis</div>
+  <div class="chips">
+    {% for t in det.get('bateram_desejaveis', []) %}<span class="chip bateu">✓ {{ t }}</span>{% endfor %}
+    {% for t in det.get('faltaram_desejaveis', []) %}<span class="chip faltou">✗ {{ t }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  {% if det.get('academicos') %}<div class="suave">Só no acadêmico (peso menor): {{ det.academicos|join(', ') }}</div>{% endif %}
+  <div class="suave">Componentes: {% for k, x in det.get('componentes', {}).items() %}{{ k }} {{ '%.0f'|format(x * 100) }}%{{ ', ' if not loop.last }}{% endfor %}</div>
+</div>
+{% endif %}
+
+<h2>Currículo</h2>
+<div class="card">
+  {% for cv in curriculos %}
+    <div>v{{ cv.versao }} · <a href="/cv/{{ cv.id }}.pdf" target="_blank" rel="noopener">abrir PDF</a>
+      <span class="suave">· gerado por {{ cv.provedor_llm }}/{{ cv.modelo_llm }} em {{ cv.criado_em.strftime('%d/%m %H:%M') }}</span></div>
+  {% else %}<div class="suave">Nenhum CV gerado ainda.</div>{% endfor %}
+  {% if cv_conteudo and cv_conteudo.get('correcoes') %}
+    <div class="suave" style="margin-top:8px">Correções da validação anti-invenção:
+      <ul>{% for c in cv_conteudo.correcoes %}<li>{{ c }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  <form method="post" action="/vaga/{{ v.id }}/gerar-cv" class="acoes">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button>{{ 'Gerar novamente' if curriculos else 'Gerar CV agora' }}</button>
+    <span class="suave">Re-pontua e gera um novo CV (pode levar até 1 minuto).</span>
+  </form>
+</div>
+
+<h2>Ações</h2>
+<div class="acoes">
+  {% if m and m.status == 'novo' %}
+  <form method="post" action="/vaga/{{ v.id }}/aplicar" target="_blank" rel="noopener" onsubmit="setTimeout(function(){location.reload()}, 900)">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="primario">Aplicar ↗</button></form>
+  <form method="post" action="/vaga/{{ v.id }}/descartar"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="perigo">Descartar</button></form>
+  {% elif m and m.status == 'descartado' %}
+  <form method="post" action="/vaga/{{ v.id }}/restaurar"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Restaurar</button></form>
+  {% endif %}
+  {% for a in aplicacoes %}<span class="chip">{{ a.status }} desde {{ a.data.strftime('%d/%m') }}</span>{% endfor %}
+</div>
+
+<h2>Descrição</h2>
+<div class="card">
+  {% if v.descricao %}<pre class="descricao">{{ v.descricao }}</pre>
+  {% else %}<p class="suave">Esta vaga veio de um alerta por e-mail, sem descrição. Abra o link original, copie a descrição e cole abaixo para calcular o score real e gerar o CV.</p>{% endif %}
+</div>
+<form method="post" action="/vaga/{{ v.id }}/descricao" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="descricao">Colar descrição da vaga</label>
+  <textarea id="descricao" name="descricao" maxlength="30000" placeholder="Cole aqui o texto completo da vaga"></textarea>
+  <div class="acoes"><button class="primario">Salvar e recalcular</button></div>
+</form>
+
+{% if req %}
+<h2>Requisitos extraídos</h2>
+<div class="card suave">
+  <div>Obrigatórios: {{ req.obrigatorios|join(', ') or '—' }}</div>
+  <div>Desejáveis: {{ req.desejaveis|join(', ') or '—' }}</div>
+  <div>Senioridade: {{ req.senioridade }} · Modelo: {{ req.modelo_trabalho }} · Idioma: {{ req.idioma }}</div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block titulo %}Integrações{% endblock %}
+{% block conteudo %}
+<h1>Integrações</h1>
+{% if not pode_gravar %}
+<div class="flash">Para salvar chaves pelo painel, defina <code>CHAVE_MESTRA</code> no <code>.env</code> da VM
+  (gere com <code>python -m app gerar-chave</code>). Enquanto isso, as chaves podem ficar só no <code>.env</code>.</div>
+{% endif %}
+<p class="suave">Segredos salvos aqui ficam criptografados no banco e nunca são exibidos de volta: só os 4 últimos caracteres.
+  O valor do painel tem prioridade sobre o do <code>.env</code>.</p>
+
+<h2>Chaves e tokens</h2>
+<div class="card">
+<table>
+  <tr><th>Segredo</th><th>Situação</th><th>Substituir</th><th></th></tr>
+  {% for s in segredos %}
+  <tr>
+    <td><code>{{ s.nome }}</code></td>
+    <td>{% if s.final %}painel {{ s.final }}{% elif s.env %}<span class="suave">.env</span>{% else %}—{% endif %}</td>
+    <td colspan="2">
+      <form method="post" action="/integracoes/segredo" class="linha" style="gap:6px">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="nome" value="{{ s.nome }}">
+        <input name="valor" type="password" autocomplete="off" placeholder="novo valor" {{ 'disabled' if not pode_gravar }}>
+        <button class="primario" {{ 'disabled' if not pode_gravar }}>Salvar</button>
+        {% if s.final %}<button name="remover" value="1" class="perigo">Remover</button>{% endif %}
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+
+<h2>Provedores de LLM</h2>
+<div class="card">
+<table>
+  <tr><th>Provedor</th><th>Estado</th><th>Teste</th></tr>
+  {% for nome, p in provedores.items() %}
+  {% set est = estados.get(nome) %}
+  <tr>
+    <td><b>{{ nome }}</b><div class="suave">{{ p.chave_env }}</div></td>
+    <td>
+      {% if est and est.desativado %}<span class="erro">desativado: {{ est.motivo }}</span>
+        <form method="post" action="/integracoes/reativar" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="provedor" value="{{ nome }}"><button>Reativar</button></form>
+      {% elif est and est.cooldown_ate %}cooldown até {{ est.cooldown_ate.strftime('%d/%m %H:%M') }} UTC
+      {% else %}<span class="ok">disponível</span>{% endif %}
+    </td>
+    <td><button hx-post="/integracoes/testar/llm" hx-vals='{"provedor": "{{ nome }}"}' hx-target="#t-{{ nome }}">Testar</button>
+        <div id="t-{{ nome }}" class="suave"></div></td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+
+<h2>Histórico das LLMs <a href="/llm-log" style="font-size:.85rem">(log completo de todas as chamadas)</a></h2>
+<div class="card" style="overflow-x:auto">
+<table>
+  <tr><th>Provedor / modelos usados</th><th>Total</th><th>Sucesso</th><th>Falhas</th><th>Últimas 24 h</th><th>Tempo médio</th><th>Tokens (ent./saída)</th><th>Último sucesso</th><th>Última falha</th></tr>
+  {% for r in resumo %}
+  <tr>
+    <td><b>{{ r.provedor }}</b><div class="suave">{{ r.modelos|join(', ') }}</div></td>
+    <td>{{ r.total }}</td>
+    <td class="ok">{{ r.ok }}</td>
+    <td>
+      <a href="/llm-log?provedor={{ r.provedor }}&resultado=falha" class="{{ 'erro' if r.falhas }}">{{ r.falhas }}</a>
+      {% if r.tipos %}<div class="suave">{% for t, n in r.tipos.items() %}{{ t or 'outro' }}: {{ n }}{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+    </td>
+    <td>{{ r.n24 }}{% if r.falhas24 %} <span class="erro">({{ r.falhas24 }} falha(s))</span>{% endif %}</td>
+    <td>{{ '%.1f'|format(r.media_ms / 1000) }} s</td>
+    <td>{{ r.tokens_in }} / {{ r.tokens_out }}</td>
+    <td>{{ r.ultimo_ok|hl }}</td>
+    <td>{{ r.ultimo_erro_em|hl }}
+      {% if r.ultimo_erro %}<details><summary>ver erro</summary><pre>{{ r.ultimo_erro }}</pre></details>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="9" class="suave">Nenhuma chamada de LLM registrada ainda. Rode uma busca para começar o histórico.</td></tr>{% endfor %}
+</table>
+</div>
+
+<h2>Alertas por e-mail (LinkedIn e outros)</h2>
+<form class="card" method="post" action="/integracoes/email">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="linha">
+    <div><label for="servidor">Servidor IMAP</label><input id="servidor" name="servidor" value="{{ email.servidor }}"></div>
+    <div><label for="porta">Porta</label><input id="porta" name="porta" type="number" value="{{ email.porta }}" style="width:90px"></div>
+    <div><label for="usuario">Usuário</label><input id="usuario" name="usuario" value="{{ email.usuario }}" autocomplete="off"></div>
+    <div><label for="pasta">Pasta/marcador</label><input id="pasta" name="pasta" value="{{ email.pasta }}"></div>
+  </div>
+  <label><input type="checkbox" name="ativo" {{ 'checked' if email.ativo }}> Coletar alertas por e-mail</label>
+  <p class="suave">A senha de app fica em <code>EMAIL_SENHA</code> (tabela acima). Use uma conta dedicada aos alertas.</p>
+  <div class="acoes"><button class="primario">Salvar</button>
+    <button type="button" hx-post="/integracoes/testar/email" hx-target="#t-email">Testar</button><span id="t-email"></span></div>
+</form>
+
+<h2>Discord e GitHub</h2>
+<form class="card" method="post" action="/integracoes/discord">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label><input type="checkbox" name="ativo" {{ 'checked' if discord_ativo }}> Notificar vagas novas e erros no Discord (webhook em <code>DISCORD_WEBHOOK_URL</code>)</label>
+  <div class="acoes"><button class="primario">Salvar</button>
+    <button type="button" hx-post="/integracoes/testar/discord" hx-target="#t-discord">Testar webhook</button><span id="t-discord"></span>
+    <button type="button" hx-post="/integracoes/testar/github" hx-target="#t-github">Testar token do GitHub</button><span id="t-github"></span></div>
+</form>
+{% endblock %}
