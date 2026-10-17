@@ -5,6 +5,7 @@ Cada passo escreve no log da execução (`registro.log`) e atualiza a barra de p
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import threading
@@ -51,6 +52,9 @@ from .match.seguranca import detectar_instrucoes
 from .notificacao.discord import Discord
 
 log = logging.getLogger(__name__)
+
+#: vagas coladas pelo usuário na aba Gerar CV (fora da rodada agendada e dos filtros eliminatórios)
+FONTE_MANUAL = "manual"
 
 #: nunca duas execuções ao mesmo tempo (agendada + "Rodar agora")
 TRAVA = threading.Lock()
@@ -368,7 +372,8 @@ def processar_pendentes(sv: Servicos) -> tuple[list[str], list[Match]]:
     corte = sv.corte_idade()
 
     with sv.fabrica() as s:
-        ids = s.scalars(select(Vaga.id).where(Vaga.eliminada_motivo.is_(None), ~Vaga.match.has(), _recente(corte))
+        ids = s.scalars(select(Vaga.id).where(Vaga.eliminada_motivo.is_(None), ~Vaga.match.has(), _recente(corte),
+                                              Vaga.fonte != FONTE_MANUAL)  # manuais só pontuam pela aba Gerar CV
                         .order_by(Vaga.data_coleta)).all()
     registro.log(f"Pontuação: {len(ids)} vaga(s) pendente(s) (filtros eliminatórios + score).", "info", "match")
     eliminadas = 0
@@ -564,5 +569,90 @@ def reprocessar_vaga(sv: Servicos, vaga_id: int, descricao: str | None = None) -
                 s.rollback()
                 return f"Score {m.score:.0f}%, mas o CV falhou: {e}"
             return f"Score {m.score:.0f}%. CV gerado."
+    finally:
+        registro.encerrar(token)
+
+
+# ------------------------------------------------------------------ vaga colada (aba Gerar CV)
+def requisitos_locais(vaga: Vaga) -> tuple[RequisitosVaga, str]:
+    """Requisitos já guardados (LLM) ou extraídos por palavras, sem chamar LLM: usado para desenhar telas."""
+    if vaga.requisitos_json:
+        try:
+            return RequisitosVaga.model_validate_json(vaga.requisitos_json), "llm"
+        except Exception:  # noqa: BLE001
+            pass
+    return extrair_por_palavras(vaga.titulo, vaga.descricao, json.loads(vaga.labels_json or "[]")), "palavras"
+
+
+def criar_vaga_manual(sv: Servicos, titulo: str, empresa: str, url: str, descricao: str,
+                      idioma: str = "") -> tuple[int, bool]:
+    """Guarda uma vaga colada pelo usuário. Devolve (id, nova); a mesma descrição colada de novo reaproveita a vaga."""
+    descricao = descricao.strip()
+    h = hashlib.sha256(("manual|" + " ".join(descricao.lower().split())).encode("utf-8")).hexdigest()
+    with sv.fabrica() as s:
+        existente = s.scalar(select(Vaga).where(Vaga.hash == h))
+        if existente is not None:
+            return existente.id, False
+        titulo = titulo.strip() or next((l.strip() for l in descricao.splitlines() if l.strip()), "Vaga colada")[:120]
+        vaga = Vaga(
+            fonte=FONTE_MANUAL, url=url, empresa=empresa.strip(), titulo=titulo[:300], descricao=descricao, hash=h,
+            descricao_completa=True, data_publicacao=None,
+            idioma=idioma if idioma in ("pt", "en") else detectar_idioma(f"{titulo}\n{descricao}"),
+            avisos_json=json.dumps(detectar_instrucoes(descricao), ensure_ascii=False))
+        s.add(vaga)
+        s.commit()
+        return vaga.id, True
+
+
+def analisar_vaga_manual(sv: Servicos, vaga_id: int, refazer: bool = False) -> str:
+    """Extrai e guarda os requisitos (LLM se houver provedor, senão palavras). Devolve o modo usado."""
+    token = registro.iniciar(sv.fabrica, None)  # vincula as chamadas de LLM a esta vaga
+    registro.definir_vaga(vaga_id)
+    try:
+        with sv.fabrica() as s:
+            vaga = s.get(Vaga, vaga_id)
+            if vaga is None:
+                return "palavras"
+            if refazer:
+                vaga.requisitos_json = None
+                s.commit()  # SQLite: sem escrita pendente enquanto o rodízio grava o log em outra sessão
+            _, modo = requisitos_da_vaga(sv, vaga)
+            s.commit()
+            return modo
+    finally:
+        registro.encerrar(token)
+
+
+def gerar_cv_manual(sv: Servicos, vaga_id: int) -> tuple[bool, str]:
+    """Pontua (sem filtros eliminatórios: o usuário pediu esta vaga) e gera o CV com o mestre atual.
+
+    Devolve (gerado, mensagem para o painel)."""
+    mestre, pessoais = sv.mestre(), sv.pessoais()
+    token = registro.iniciar(sv.fabrica, None)
+    registro.definir_vaga(vaga_id)
+    try:
+        with sv.fabrica() as s:
+            vaga = s.get(Vaga, vaga_id)
+            if vaga is None or vaga.fonte != FONTE_MANUAL:
+                return False, "Vaga não encontrada."
+            req, modo = requisitos_da_vaga(sv, vaga)
+            s.commit()
+            perfil = score.Perfil(mestre, float(sv.config.obter("match.peso_academico", 0.5)))
+            det = score.calcular(req, perfil, sv.config.obter("match.pesos"), modo=modo, local=vaga.local)
+            m = vaga.match or Match(vaga_id=vaga.id, score=det.score, notificado=True)  # sem aviso no Discord
+            m.score, m.preliminar, m.modo, m.status = det.score, False, modo, "novo"
+            m.detalhamento_json = json.dumps(det.como_dict(), ensure_ascii=False)
+            s.add(m)
+            s.commit()
+            try:
+                gerar_cv(sv, s, vaga, mestre, pessoais)
+                s.commit()
+            except ProvedoresEsgotados as e:
+                return False, f"Score {det.score:.0f}%. CV adiado, sem provedor de LLM disponível: {e}"
+            except Exception as e:  # noqa: BLE001
+                s.rollback()
+                log.exception("Falha ao gerar o CV da vaga manual %s", vaga_id)
+                return False, f"Score {det.score:.0f}%, mas o CV falhou: {e}"
+            return True, f"Score {det.score:.0f}%. CV gerado."
     finally:
         registro.encerrar(token)

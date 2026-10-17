@@ -189,3 +189,11 @@ hr { border: 0; border-top: 1px solid var(--borda); }
   .acoes > form > button { width: 100%; }
   th, td { padding: 8px 8px; }
 }
+
+.lacuna .opcoes { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; }
+label.opcao { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; font-size: .9rem; color: var(--txt); cursor: pointer; }
+.lacuna .extra { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--borda); }
+@supports selector(:has(*)) {
+  .lacuna .extra { display: none; }
+  .lacuna:has(.r-sim:checked) .extra { display: block; }
+}

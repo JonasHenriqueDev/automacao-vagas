@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block titulo %}Gerar CV{% endblock %}
+{% block conteudo %}
+
+{% if etapa == 'erro' %}
+<h1>Gerar CV</h1>
+<div class="card erro">{{ erro_arquivo }}</div>
+
+{% elif etapa == 'colar' %}
+<h1>Gerar CV para uma vaga</h1>
+<p class="suave">Cole a descrição de uma vaga que você encontrou por aí. O sistema lê os requisitos, compara com o seu currículo mestre e,
+  se a vaga pedir algo que não está lá, <b>pergunta se você tem esse conhecimento</b> (o que você confirmar entra no mestre). Depois gera o PDF.</p>
+<form method="post" action="/gerar/analisar" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="linha">
+    <div><label for="titulo">Título da vaga (opcional)</label><input id="titulo" name="titulo" maxlength="300" style="width:320px" placeholder="Se vazio, uso a primeira linha"></div>
+    <div><label for="empresa">Empresa (opcional)</label><input id="empresa" name="empresa" maxlength="200" style="width:220px"></div>
+    <div><label for="url">Link da vaga (opcional)</label><input id="url" name="url" maxlength="2000" style="width:280px" placeholder="https://…"></div>
+    <div><label for="idioma">Idioma do CV</label>
+      <select id="idioma" name="idioma"><option value="auto">Automático (pelo texto da vaga)</option><option value="pt">Português</option><option value="en">Inglês</option></select></div>
+  </div>
+  <label for="descricao">Descrição da vaga</label>
+  <textarea id="descricao" name="descricao" required minlength="{{ min_descricao }}" maxlength="{{ max_descricao }}" style="min-height:260px" placeholder="Cole aqui o texto completo da vaga (responsabilidades, requisitos, diferenciais…)"></textarea>
+  <div class="acoes"><button class="primario">Analisar vaga</button>
+    <span class="suave">Leva alguns segundos: a LLM extrai os requisitos. O texto da vaga é tratado como dado, nunca como instrução.</span></div>
+</form>
+
+{% if recentes %}
+<h2>Vagas coladas recentemente</h2>
+<div class="card">
+  <table>
+    {% for r in recentes %}
+    <tr><td><b>{{ r.v.titulo }}</b><div class="suave">{{ r.v.empresa or 'empresa n/d' }}</div></td>
+      <td class="suave" style="white-space:nowrap">{{ r.n_cv }} CV(s)</td>
+      <td style="white-space:nowrap"><a href="/gerar/{{ r.v.id }}">reabrir</a> · <a href="/vaga/{{ r.v.id }}">detalhes</a></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% else %}
+<p><a href="/gerar">← colar outra vaga</a></p>
+<h1>{{ v.titulo }}</h1>
+<div class="suave">{{ v.empresa or 'empresa n/d' }} · CV em {{ 'inglês' if v.idioma == 'en' else 'português' }}
+  {% if v.url %}· <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">vaga original ↗</a>{% endif %}
+  · <a href="/vaga/{{ v.id }}">detalhes da vaga</a></div>
+
+{% if avisos %}
+<div class="flash" style="margin-top:12px">
+  <b>⚠ A descrição contém trechos que parecem instruções para robôs/IA.</b> Leia a vaga com atenção.
+  <ul>{% for a in avisos %}<li>{{ a }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<h2>Requisitos encontrados <span class="suave">· compatibilidade atual {{ '%.0f'|format(det.score) }}%</span></h2>
+<div class="card">
+  <div class="suave">Obrigatórios</div>
+  <div class="chips">
+    {% for t in det.bateram %}<span class="chip bateu">✓ {{ t }}</span>{% endfor %}
+    {% for t in det.faltaram %}<span class="chip faltou">✗ {{ t }}</span>{% endfor %}
+    {% if not req.obrigatorios %}<span class="suave">nenhum detectado</span>{% endif %}
+  </div>
+  {% if req.desejaveis %}
+  <div class="suave">Desejáveis</div>
+  <div class="chips">
+    {% for t in det.bateram_desejaveis %}<span class="chip bateu">✓ {{ t }}</span>{% endfor %}
+    {% for t in det.faltaram_desejaveis %}<span class="chip faltou">✗ {{ t }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  <div class="suave">Senioridade: {{ req.senioridade }} · Modelo: {{ req.modelo_trabalho }}
+    · análise por {{ 'LLM' if modo == 'llm' else 'palavras-chave' }}</div>
+  {% if modo != 'llm' %}
+  <form method="post" action="/gerar/{{ v.id }}/reanalisar" class="acoes">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button>Tentar de novo com a LLM</button>
+    <span class="suave">A leitura por palavras-chave só reconhece tecnologias conhecidas; com a LLM os requisitos ficam mais completos.</span>
+  </form>
+  {% endif %}
+</div>
+
+<form method="post" action="/gerar/{{ v.id }}/gerar">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if lacunas %}
+  <input type="hidden" name="n" value="{{ lacunas|length }}">
+  <h2>Você tem conhecimento nisso?</h2>
+  <p class="suave">A vaga pede {{ lacunas|length }} item(ns) que não estão no seu currículo mestre. Às vezes é só algo que ficou de fora dos dados:
+    responda <b>Tenho</b> e o item entra no mestre (com backup em <code>data/backups/</code>) e já vale para este CV e para os próximos.
+    Quem fica em <b>Não tenho</b> não é alterado. Seja honesto: o CV só afirma o que estiver no mestre.</p>
+  {% for l in lacunas %}
+  {% set i = loop.index0 %}
+  <div class="card lacuna">
+    <input type="hidden" name="termo_{{ i }}" value="{{ l.termo }}">
+    <div><b>{{ l.termo }}</b> <span class="chip {{ 'faltou' if l.obrigatoria else '' }}">{{ 'obrigatório' if l.obrigatoria else 'desejável' }}</span></div>
+    <div class="opcoes">
+      <label class="opcao"><input type="radio" name="resp_{{ i }}" value="nao" checked> Não tenho</label>
+      <label class="opcao"><input type="radio" name="resp_{{ i }}" value="sim" class="r-sim"> Tenho</label>
+      {% if l.inativa %}
+      <label class="opcao"><input type="radio" name="resp_{{ i }}" value="reativar"> Reativar «{{ l.inativa }}» (já está no mestre, desativada)</label>
+      <input type="hidden" name="reativar_{{ i }}" value="{{ l.inativa }}">
+      {% endif %}
+    </div>
+    <div class="extra">
+      <div class="linha">
+        <div><label for="nome_{{ i }}">Como aparece no CV</label><input id="nome_{{ i }}" name="nome_{{ i }}" value="{{ l.termo }}" maxlength="60" style="width:220px"></div>
+        <div><label for="nivel_{{ i }}">Nível</label>
+          <select id="nivel_{{ i }}" name="nivel_{{ i }}">
+            <option value="1">1 · noções</option><option value="2">2 · básico</option><option value="3" selected>3 · intermediário</option>
+            <option value="4">4 · avançado</option><option value="5">5 · domínio</option></select></div>
+        <div><label for="cat_{{ i }}">Categoria</label>
+          <select id="cat_{{ i }}" name="cat_{{ i }}">{% for c in categorias %}<option {{ 'selected' if c == 'Outras' }}>{{ c }}</option>{% endfor %}</select></div>
+        <div><label for="exp_{{ i }}">Onde usou? (opcional)</label>
+          <select id="exp_{{ i }}" name="exp_{{ i }}" style="max-width:340px"><option value="">Em nenhuma experiência específica</option>
+            {% for e in experiencias %}<option value="{{ e.id }}">{{ e.rotulo }}</option>{% endfor %}</select></div>
+      </div>
+      <label for="texto_{{ i }}">O que você fez com isso? (opcional; vira um bullet na experiência escolhida, com fatos reais)</label>
+      <textarea id="texto_{{ i }}" name="texto_{{ i }}" maxlength="700" style="min-height:60px"></textarea>
+      <label class="opcao"><input type="checkbox" name="acad_{{ i }}"> só acadêmico/estudo (peso menor no match; não pode ser ligado a uma experiência)</label>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <h2>Nada a perguntar</h2>
+  <div class="card">O seu currículo mestre já cobre todos os requisitos que encontrei nesta vaga.</div>
+  {% endif %}
+  <div class="acoes">
+    <button class="primario">{{ 'Salvar respostas e gerar CV' if lacunas else 'Gerar CV' }}</button>
+    <span class="suave">Pode levar até 1 minuto (a LLM reescreve os bullets).</span>
+  </div>
+</form>
+
+{% if curriculos %}
+<h2>CVs já gerados para esta vaga</h2>
+<div class="card">
+  {% for cv in curriculos %}
+  <div>v{{ cv.versao }} · <a href="/cv/{{ cv.id }}.pdf" target="_blank" rel="noopener">abrir PDF</a>
+    <span class="suave">· {{ cv.criado_em.strftime('%d/%m %H:%M') }}</span></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<details class="card"><summary>Descrição colada</summary><pre class="descricao">{{ v.descricao }}</pre></details>
+{% endif %}
+{% endblock %}

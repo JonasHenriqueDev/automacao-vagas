@@ -115,9 +115,9 @@ def _bool(campos: Mapping[str, str], nome: str) -> bool:
     return str(campos.get(nome, "")).lower() in ("on", "true", "1", "sim")
 
 
-def _nivel(campos: Mapping[str, str]) -> int:
+def _nivel(campos: Mapping[str, str], nome: str = "nivel") -> int:
     try:
-        n = int(str(campos.get("nivel", "3")))
+        n = int(str(campos.get(nome, "3")))
     except ValueError:
         raise ValueError("Nível deve ser um número de 1 a 5.") from None
     if not 1 <= n <= 5:
@@ -341,7 +341,67 @@ def _item_editar(dados: dict, f: Mapping[str, str]) -> str:
     return "Atualizado."
 
 
+MAX_CONHECIMENTOS = 30
+
+
+def _conhecimento_novo(dados: dict, f: Mapping[str, str], i: int) -> str:
+    """Resposta «Tenho» do formulário de lacunas da vaga: skill nova (ou reativada) + vínculo opcional a uma
+    experiência (tecnologia da experiência e, se descrito, um bullet). Devolve o nome da skill."""
+    nome = _texto(f, f"nome_{i}", maximo=60)
+    academico = _bool(f, f"acad_{i}")
+    exp_id = str(f.get(f"exp_{i}", "")).strip()
+    texto = _texto(f, f"texto_{i}", False)
+    if academico and (exp_id or texto):
+        raise ValueError(f"«{nome}»: conhecimento só acadêmico não pode ser ligado a uma experiência.")
+    if texto and not exp_id:
+        raise ValueError(f"«{nome}»: para descrever o que fez, escolha em qual experiência.")
+    existente = next((s for s in dados.get("skills", []) if str(s.get("nome", "")).lower() == nome.lower()), None)
+    if existente is not None:
+        existente["ativo"] = True
+    else:
+        skill = {"nome": nome, "categoria": _texto(f, f"cat_{i}", False, 40) or "Outras", "nivel": _nivel(f, f"nivel_{i}")}
+        if academico:
+            skill["academico"] = True
+        dados.setdefault("skills", []).append(skill)
+    if exp_id:
+        e = _exp(dados, exp_id)
+        if nome.lower() not in {str(t).lower() for t in e.get("tecnologias", [])}:
+            e.setdefault("tecnologias", []).append(nome)
+        if texto:
+            _bullet_adicionar(dados, {"ref": exp_id, "texto": texto, "tags": nome})
+    return nome
+
+
+def _conhecimentos_aplicar(dados: dict, f: Mapping[str, str]) -> str:
+    """Formulário «Você tem conhecimento nisso?»: para cada item indexado, `resp_i` = nao | sim | reativar."""
+    try:
+        n = int(str(f.get("n", "0")))
+    except ValueError:
+        n = -1
+    if not 0 <= n <= MAX_CONHECIMENTOS:
+        raise ValueError("Formulário inválido.")
+    adicionados: list[str] = []
+    reativados: list[str] = []
+    for i in range(n):
+        resp = str(f.get(f"resp_{i}", "nao"))
+        if resp == "sim":
+            adicionados.append(_conhecimento_novo(dados, f, i))
+        elif resp == "reativar":
+            s = _skill(dados, _texto(f, f"reativar_{i}", maximo=60))
+            s["ativo"] = True
+            reativados.append(s["nome"])
+        elif resp != "nao":
+            raise ValueError("Resposta inválida no formulário.")
+    partes = []
+    if adicionados:
+        partes.append("adicionado(s) ao mestre: " + ", ".join(adicionados))
+    if reativados:
+        partes.append("reativado(s): " + ", ".join(reativados))
+    return ("Conhecimentos " + "; ".join(partes) + ".") if partes else "Nenhum conhecimento novo informado."
+
+
 ACOES: dict[str, Callable[[dict, Mapping[str, str]], str]] = {
+    "conhecimentos_aplicar": _conhecimentos_aplicar,
     "geral_salvar": _geral_salvar,
     "alternar": _alternar,
     "remover": _remover,

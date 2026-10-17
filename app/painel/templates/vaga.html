@@ -4,7 +4,8 @@
 <p><a href="/">← voltar</a></p>
 <h1>{{ v.titulo }}</h1>
 <div class="suave"><span class="idade" title="{{ v.data_publicacao|hl('%d/%m/%Y %H:%M') }}">aberta {{ v.data_publicacao|idade }}</span> · {{ v.empresa or 'empresa n/d' }}{% if v.local %} · {{ v.local }}{% endif %} · {{ v.fonte }} · {{ v.modelo_trabalho }}
-  · <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">vaga original ↗</a></div>
+  {% if v.url.startswith(('http://', 'https://')) %}· <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">vaga original ↗</a>{% endif %}
+  {% if v.fonte == 'manual' %}· <a href="/gerar/{{ v.id }}">conhecimentos e novo CV</a>{% endif %}</div>
 
 {% if avisos %}
 <div class="flash" style="margin-top:12px">
