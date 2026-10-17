@@ -268,12 +268,6 @@ def colar_descricao(request: Request, vaga_id: int, descricao: str = Form("")):
     return voltar(f"/vaga/{vaga_id}")
 
 
-@router.post("/vaga/{vaga_id}/gerar-cv", dependencies=[Depends(exigir_login), Depends(checar_csrf)])
-def gerar_cv_manual(request: Request, vaga_id: int):
-    avisar(request, reprocessar_vaga(sv_de(request), vaga_id))
-    return voltar(f"/vaga/{vaga_id}")
-
-
 @router.get("/cv/{cv_id}.pdf", dependencies=[Depends(exigir_login)])
 def baixar_cv(request: Request, cv_id: int):
     sv = sv_de(request)

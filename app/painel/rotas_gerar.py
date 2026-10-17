@@ -1,4 +1,6 @@
-"""Aba Gerar CV: cola a descrição de uma vaga, pergunta sobre o que falta no mestre e gera o CV."""
+"""Aba Gerar CV: cola a descrição de uma vaga, pergunta sobre o que falta no mestre e gera o CV.
+
+As vagas encontradas pela coleta usam o mesmo formulário de lacunas (/gerar/{id}) antes de gerar o CV."""
 from __future__ import annotations
 
 import json
@@ -22,6 +24,7 @@ from ..pipeline import (
     analisar_vaga_manual,
     criar_vaga_manual,
     gerar_cv_manual,
+    reprocessar_vaga,
     requisitos_locais,
 )
 from .auth import checar_csrf, exigir_login
@@ -38,9 +41,10 @@ def _url_http(url: str) -> str:
     return url.strip()[:2000] if p.scheme in ("http", "https") and p.netloc else ""
 
 
-def _vaga_manual(s, vaga_id: int) -> Vaga:
+def _vaga(s, vaga_id: int) -> Vaga:
+    """Vaga colada (manual) ou encontrada pela coleta: as duas passam pelo formulário de lacunas."""
     v = s.get(Vaga, vaga_id)
-    if v is None or v.fonte != FONTE_MANUAL:
+    if v is None:
         raise HTTPException(404, "Vaga não encontrada.")
     return v
 
@@ -78,7 +82,7 @@ def revisar_lacunas(request: Request, vaga_id: int):
     except FileNotFoundError as e:
         return pagina(request, "gerar.html", etapa="erro", erro_arquivo=str(e))
     with sv.fabrica() as s:
-        v = _vaga_manual(s, vaga_id)
+        v = _vaga(s, vaga_id)
         req, modo = requisitos_locais(v)
         peso_aca = float(sv.config.obter("match.peso_academico", 0.5))
         pendentes = lacunas.encontrar(req, completo, peso_aca)
@@ -89,7 +93,7 @@ def revisar_lacunas(request: Request, vaga_id: int):
             categorias.append("Outras")
         return pagina(
             request, "gerar.html", etapa="lacunas", v=v, req=req, modo=modo, det=det.como_dict(),
-            lacunas=pendentes, categorias=categorias,
+            lacunas=pendentes, categorias=categorias, manual=v.fonte == FONTE_MANUAL,
             experiencias=[{"id": e.id, "rotulo": f"{e.empresa} — {e.cargo.pt} ({e.inicio} → {e.fim or 'atual'})"
                            + ("" if e.ativo else " [desativada]")} for e in completo.experiencias],
             curriculos=v.curriculos, avisos=json.loads(v.avisos_json or "[]"))
@@ -99,7 +103,7 @@ def revisar_lacunas(request: Request, vaga_id: int):
 def reanalisar(request: Request, vaga_id: int):
     sv = sv_de(request)
     with sv.fabrica() as s:
-        _vaga_manual(s, vaga_id)
+        _vaga(s, vaga_id)
     modo = analisar_vaga_manual(sv, vaga_id, refazer=True)
     avisar(request, "Requisitos reanalisados com a LLM." if modo == "llm"
            else "A LLM continua indisponível; mantive a análise por palavras-chave.")
@@ -110,7 +114,7 @@ def reanalisar(request: Request, vaga_id: int):
 async def gerar(request: Request, vaga_id: int):
     sv = sv_de(request)
     with sv.fabrica() as s:
-        _vaga_manual(s, vaga_id)
+        manual = _vaga(s, vaga_id).fonte == FONTE_MANUAL
     form = await request.form()
     campos = {k: str(v) for k, v in form.items()}
     mensagens: list[str] = []
@@ -121,7 +125,10 @@ async def gerar(request: Request, vaga_id: int):
             avisar(request, f"Nada foi salvo: {e}")
             return voltar(f"/gerar/{vaga_id}")
     # chamadas à LLM são síncronas e podem levar minutos: fora do event loop, senão o painel inteiro trava
-    gerado, resultado = await run_in_threadpool(gerar_cv_manual, sv, vaga_id)
+    if manual:
+        gerado, resultado = await run_in_threadpool(gerar_cv_manual, sv, vaga_id)
+    else:  # vaga da coleta: re-pontua com os filtros eliminatórios, como o antigo botão «Gerar CV agora»
+        gerado, resultado = True, await run_in_threadpool(reprocessar_vaga, sv, vaga_id)
     mensagens.append(resultado)
     avisar(request, " ".join(mensagens))
     return voltar(f"/vaga/{vaga_id}" if gerado else f"/gerar/{vaga_id}")
@@ -132,7 +139,7 @@ async def melhorar_texto(request: Request, vaga_id: int):
     """Fragmento HTMX: devolve o campo «O que você fez com isso?» com o texto melhorado pela LLM (nada é gravado)."""
     sv = sv_de(request)
     with sv.fabrica() as s:
-        _vaga_manual(s, vaga_id)
+        _vaga(s, vaga_id)
     form = await request.form()
     try:
         i = int(str(form.get("i", "")))

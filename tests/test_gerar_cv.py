@@ -338,3 +338,48 @@ def test_melhorar_exige_texto_e_barra_dados_pessoais(fabrica_servicos, monkeypat
 def test_formulario_traz_o_botao_melhorar_por_item(web):
     html = web.get(colar(web)).text
     assert html.count("Melhorar com a LLM") == 3 and '{"i": "1"}' in html
+
+
+# ------------------------------------------------------------------ vaga encontrada pela coleta
+def vaga_coletada(sv, descricao: str = DESCRICAO, completa: bool = True) -> int:
+    with sv.fabrica() as s:
+        v = Vaga(fonte="github", url="https://github.com/backend-br/vagas/issues/99", empresa="Acme",
+                 titulo="Dev Backend Pleno", descricao=descricao, hash="coletada-99", descricao_completa=completa,
+                 idioma="pt", avisos_json="[]")
+        s.add(v)
+        s.commit()
+        return v.id
+
+
+def test_vaga_encontrada_leva_ao_formulario_de_lacunas(web, painel_gerar):
+    sv, _, _ = painel_gerar
+    vid = vaga_coletada(sv)
+    detalhe = web.get(f"/vaga/{vid}").text
+    assert f'href="/gerar/{vid}"' in detalhe and f'action="/vaga/{vid}/gerar-cv"' not in detalhe
+    html = web.get(f"/gerar/{vid}").text
+    assert "Você tem conhecimento nisso?" in html and 'name="termo_0"' in html
+    assert f'href="/vaga/{vid}">← voltar à vaga' in html and "colar outra vaga" not in html
+
+
+def test_vaga_encontrada_grava_respostas_e_gera_o_cv(web, painel_gerar):
+    sv, _, _ = painel_gerar
+    vid = vaga_coletada(sv)
+    web.post(f"/gerar/{vid}/reanalisar", data={"csrf": token(web)})  # requisitos pela LLM, como na aba Gerar CV
+    r = web.post(f"/gerar/{vid}/gerar", data={
+        "csrf": token(web), "n": "3",
+        "resp_0": "sim", "nome_0": "Kubernetes", "nivel_0": "2", "cat_0": "Outras",
+        "resp_1": "nao", "resp_2": "nao",
+    }, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == f"/vaga/{vid}"
+    assert "Kubernetes" in [s.nome for s in carregar_mestre(sv.config.caminho("mestre")).skills]
+    with sv.fabrica() as s:
+        v = s.get(Vaga, vid)
+        assert v.fonte == "github" and len(v.curriculos) == 1
+        assert "Kubernetes" in json.loads(v.match.detalhamento_json)["bateram"]
+
+
+def test_vaga_encontrada_sem_descricao_completa_pede_a_descricao(web, painel_gerar):
+    sv, _, _ = painel_gerar
+    vid = vaga_coletada(sv, descricao="", completa=False)
+    assert f'href="/gerar/{vid}"' not in web.get(f"/vaga/{vid}").text
+    assert "ainda não tem a descrição completa" in web.get(f"/gerar/{vid}").text

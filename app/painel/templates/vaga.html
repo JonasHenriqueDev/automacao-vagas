@@ -5,7 +5,7 @@
 <h1>{{ v.titulo }}</h1>
 <div class="suave"><span class="idade" title="{{ v.data_publicacao|hl('%d/%m/%Y %H:%M') }}">aberta {{ v.data_publicacao|idade }}</span> · {{ v.empresa or 'empresa n/d' }}{% if v.local %} · {{ v.local }}{% endif %} · {{ v.fonte }} · {{ v.modelo_trabalho }}
   {% if v.url.startswith(('http://', 'https://')) %}· <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">vaga original ↗</a>{% endif %}
-  {% if v.fonte == 'manual' %}· <a href="/gerar/{{ v.id }}">conhecimentos e novo CV</a>{% endif %}</div>
+  {% if v.descricao_completa %}· <a href="/gerar/{{ v.id }}">conhecimentos e novo CV</a>{% endif %}</div>
 
 {% if avisos %}
 <div class="flash" style="margin-top:12px">
@@ -44,11 +44,14 @@
     <div class="suave" style="margin-top:8px">Correções da validação anti-invenção:
       <ul>{% for c in cv_conteudo.correcoes %}<li>{{ c }}</li>{% endfor %}</ul></div>
   {% endif %}
-  <form method="post" action="/vaga/{{ v.id }}/gerar-cv" class="acoes">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button>{{ 'Gerar novamente' if curriculos else 'Gerar CV agora' }}</button>
-    <span class="suave">Re-pontua e gera um novo CV (pode levar até 1 minuto).</span>
-  </form>
+  {% if v.descricao_completa %}
+  <div class="acoes">
+    <a class="botao" href="/gerar/{{ v.id }}">{{ 'Gerar novamente' if curriculos else 'Gerar CV agora' }}</a>
+    <span class="suave">Antes, pergunta se você tem as tecnologias da vaga que faltam no seu currículo mestre; depois re-pontua e gera um novo CV.</span>
+  </div>
+  {% else %}
+  <div class="suave">Cole a descrição completa da vaga abaixo para gerar o CV.</div>
+  {% endif %}
 </div>
 
 <h2>Ações</h2>

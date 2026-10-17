@@ -39,12 +39,15 @@
 {% endif %}
 
 {% else %}
-<p><a href="/gerar">← colar outra vaga</a></p>
+<p>{% if manual %}<a href="/gerar">← colar outra vaga</a>{% else %}<a href="/vaga/{{ v.id }}">← voltar à vaga</a>{% endif %}</p>
 <h1>{{ v.titulo }}</h1>
 <div class="suave">{{ v.empresa or 'empresa n/d' }} · CV em {{ 'inglês' if v.idioma == 'en' else 'português' }}
   {% if v.url %}· <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">vaga original ↗</a>{% endif %}
   · <a href="/vaga/{{ v.id }}">detalhes da vaga</a></div>
 
+{% if not manual and not v.descricao_completa %}
+<div class="flash" style="margin-top:12px">Esta vaga ainda não tem a descrição completa: <a href="/vaga/{{ v.id }}">cole-a na página da vaga</a> para gerar o CV.</div>
+{% endif %}
 {% if avisos %}
 <div class="flash" style="margin-top:12px">
   <b>⚠ A descrição contém trechos que parecem instruções para robôs/IA.</b> Leia a vaga com atenção.
@@ -137,6 +140,6 @@
 </div>
 {% endif %}
 
-<details class="card"><summary>Descrição colada</summary><pre class="descricao">{{ v.descricao }}</pre></details>
+<details class="card"><summary>{{ 'Descrição colada' if manual else 'Descrição da vaga' }}</summary><pre class="descricao">{{ v.descricao }}</pre></details>
 {% endif %}
 {% endblock %}
