@@ -15,6 +15,7 @@
   {% set caminho = request.url.path %}
   <a class="item {{ 'ativo' if caminho == '/' or caminho.startswith('/vaga') }}" href="/">Para revisar</a>
   <a class="item {{ 'ativo' if caminho.startswith('/candidaturas') }}" href="/candidaturas">Candidaturas</a>
+  <a class="item {{ 'ativo' if caminho.startswith('/gerar') }}" href="/gerar">Gerar CV</a>
   <a class="item {{ 'ativo' if caminho.startswith('/curriculo') }}" href="/curriculo">Currículo</a>
   <a class="item {{ 'ativo' if caminho.startswith('/execucoes') }}" href="/execucoes">Execuções</a>
   <a class="item {{ 'ativo' if caminho.startswith('/configuracoes') }}" href="/configuracoes">Configurações</a>

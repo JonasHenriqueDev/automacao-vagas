@@ -62,3 +62,11 @@ details summary { cursor: pointer; color: var(--acento); }
 details pre { white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; font-size: .8rem; }
 .idade { font-weight: 600; }
 .idade.nova { color: var(--ok); }
+
+.lacuna .opcoes { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; }
+label.opcao { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; font-size: .9rem; color: var(--txt); cursor: pointer; }
+.lacuna .extra { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--borda); }
+@supports selector(:has(*)) {
+  .lacuna .extra { display: none; }
+  .lacuna:has(.r-sim:checked) .extra { display: block; }
+}
