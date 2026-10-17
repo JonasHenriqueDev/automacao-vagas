@@ -136,6 +136,13 @@ button.primario:hover, .botao.primario:hover { background: var(--acento-forte); 
 button.perigo { color: var(--erro); border-color: var(--erro); }
 button.perigo:hover { background: var(--erro-bg); }
 button:disabled { opacity: .5; cursor: not-allowed; }
+/* Carregando: formulário enviado (.carregando, via app.js) ou chamada HTMX em curso (.htmx-request). */
+button.carregando, button.htmx-request { cursor: progress; pointer-events: none; opacity: .75; }
+button.carregando::after, button.htmx-request::after {
+  content: ""; width: 1em; height: 1em; flex: none; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; animation: girar .7s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { button.carregando::after, button.htmx-request::after { animation-duration: 2s; } }
 .acoes > a:not(.botao) { padding: 8px 4px; font-weight: 500; }
 
 /* ---- TextField ---- */
