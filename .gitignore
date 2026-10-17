@@ -19,3 +19,6 @@ backups/
 # Dados pessoais e planejamento: ficam só locais (há versões de exemplo no repositório)
 data/curriculo_mestre.yaml
 PLANO-automacao-vagas.md
+
+# Instruções locais do Claude Code (acesso à VM etc.): nunca commitar
+CLAUDE.local.md

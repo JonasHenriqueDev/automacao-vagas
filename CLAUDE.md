@@ -42,4 +42,6 @@ Things that need several files to understand:
 
 ## Deployment
 
+**Git workflow:** no pull requests in this project — commit and push straight to `main`, then deploy. The SSH key path and VM address are kept only on the developer machine (Claude memory or a gitignored `CLAUDE.local.md`) — never put them here: this repo is public.
+
 Production is an Oracle Always-Free VM (Ubuntu, ~1 GB RAM) shared with OpenSpeak — never touch the OpenSpeak services or its Caddy blocks. App at `/opt/automacao-vagas` as user `vagas`, systemd unit `vagas` (`MemoryMax=250M`), behind Caddy at https://vagasautomacao.duckdns.org (also the sslip.io alias). Deploy with `ssh -i <key> ubuntu@<vm> 'bash -s' < deploy/deploy.sh` (git fetch + reset, pip, Alembic, restart). The VM's own `data/curriculo_mestre.yaml`, `.env` and DB are the live ones; `git reset --hard` must never be pointed at a tree that tracks the master CV (it would delete it). No Docker, local LLMs/embeddings or headless browsers on the VM.
