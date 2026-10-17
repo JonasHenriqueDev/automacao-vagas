@@ -10,8 +10,11 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
 from ..curriculo import edicao, lacunas
+from ..curriculo.melhorar import melhorar_bullet
 from ..curriculo.mestre import carregar_mestre
+from ..curriculo.personalizar import ErroPrivacidade
 from ..db.models import Vaga
+from ..llm.rodizio import ProvedoresEsgotados
 from ..match import score
 from ..pipeline import (
     FONTE_MANUAL,
@@ -21,7 +24,7 @@ from ..pipeline import (
     requisitos_locais,
 )
 from .auth import checar_csrf, exigir_login
-from .rotas import avisar, pagina, sv_de, voltar
+from .rotas import avisar, pagina, sv_de, templates, voltar
 
 router = APIRouter(dependencies=[Depends(exigir_login)])
 
@@ -120,3 +123,31 @@ async def gerar(request: Request, vaga_id: int):
     mensagens.append(resultado)
     avisar(request, " ".join(mensagens))
     return voltar(f"/vaga/{vaga_id}" if gerado else f"/gerar/{vaga_id}")
+
+
+@router.post("/gerar/{vaga_id}/melhorar-texto", response_class=HTMLResponse, dependencies=[Depends(checar_csrf)])
+async def melhorar_texto(request: Request, vaga_id: int):
+    """Fragmento HTMX: devolve o campo «O que você fez com isso?» com o texto melhorado pela LLM (nada é gravado)."""
+    sv = sv_de(request)
+    with sv.fabrica() as s:
+        _vaga_manual(s, vaga_id)
+    form = await request.form()
+    try:
+        i = int(str(form.get("i", "")))
+        if not 0 <= i < edicao.MAX_CONHECIMENTOS:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(400, "Item inválido.") from None
+    original = str(form.get(f"texto_{i}", ""))[:edicao.MAX_TEXTO]
+    nome = " ".join(str(form.get(f"nome_{i}", "")).split())[:60] or str(form.get(f"termo_{i}", ""))[:60]
+    ctx = {"request": request, "i": i, "vaga_id": vaga_id, "texto": original, "mensagem": "", "sucesso": False, "erro": False}
+    try:
+        ctx["texto"] = melhorar_bullet(sv.rodizio, carregar_mestre(sv.config.caminho("mestre")), sv.pessoais(), nome, original)
+        ctx.update(mensagem="Sugestão da LLM: confira se os fatos estão corretos, edite à vontade e salve.", sucesso=True)
+    except ValueError as e:
+        ctx.update(mensagem=str(e), erro=True)
+    except ErroPrivacidade:
+        ctx.update(mensagem="O texto cita nome de empresa ou dado pessoal; tire isso e tente de novo.", erro=True)
+    except ProvedoresEsgotados:
+        ctx.update(mensagem="A LLM está indisponível ou não devolveu uma sugestão válida; mantive o seu texto.", erro=True)
+    return templates.TemplateResponse(request, "_texto_lacuna.html", ctx)

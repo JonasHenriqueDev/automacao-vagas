@@ -236,3 +236,73 @@ def test_llm_indisponivel_cai_para_palavras_e_oferece_tentar_de_novo(fabrica_ser
         assert 'name="termo_0" value="kubernetes"' in html  # a taxonomia ainda detecta as tecnologias conhecidas
         r = c.post(f"{destino}/gerar", data={"csrf": token(c), "n": "0"}, follow_redirects=False)
         assert r.headers["location"] == destino and "CV adiado" in c.get(destino).text
+
+
+# ------------------------------------------------------------------ «Melhorar com a LLM»
+def painel_melhorar(fabrica_servicos, monkeypatch, resposta):
+    """Painel cuja LLM responde `resposta` (dict) à tarefa de reescrita; guarda os prompts recebidos."""
+    prompts: list[str] = []
+
+    def h(req: httpx.Request) -> httpx.Response:
+        corpo = json.loads(req.content)
+        prompts.append(corpo["messages"][1]["content"])
+        if "extrai requisitos" in corpo["messages"][0]["content"]:
+            return resposta_chat(EXTRACAO)
+        return resposta_chat(resposta)
+
+    sv = preparar(fabrica_servicos, monkeypatch, h)
+    definir_credenciais(sv, "admin", SENHA)
+    return sv, criar_app(sv, com_agendador=False), prompts
+
+
+def melhorar(c, destino, texto, **extra):
+    return c.post(f"{destino}/melhorar-texto", data={
+        "i": "0", "termo_0": "Kubernetes", "nome_0": "Kubernetes", "texto_0": texto, **extra},
+        headers={"X-CSRF-Token": token(c)})
+
+
+def test_melhorar_devolve_o_texto_sugerido_sem_gravar_nada(fabrica_servicos, monkeypatch):
+    sv, app, prompts = painel_melhorar(fabrica_servicos, monkeypatch, {
+        "texto": "Publicação de serviços em cluster Kubernetes do time, com 3 deploys por semana."})
+    with TestClient(app, base_url="http://testserver") as c:
+        logar(c)
+        destino = colar(c)
+        antes = sv.config.caminho("mestre").read_text(encoding="utf-8")
+        r = melhorar(c, destino, "subi uns servicos num cluster kubernetes, 3 deploys por semana")
+        assert r.status_code == 200 and 'id="bloco_texto_0"' in r.text and "Publicação de serviços" in r.text
+        assert "confira se os fatos" in r.text
+        assert sv.config.caminho("mestre").read_text(encoding="utf-8") == antes  # só sugere; quem grava é o formulário
+    assert "subi uns servicos" in prompts[-1] and "Maria" not in prompts[-1]
+
+
+@pytest.mark.parametrize("sugestao, motivo", [
+    ({"texto": "Publicação de serviços Kubernetes com 5 deploys por semana."}, "mantive o seu texto"),  # número novo
+    ({"texto": "Publicação de serviços Kubernetes com Terraform e Docker."}, "mantive o seu texto"),  # tecnologia nova
+])
+def test_melhorar_rejeita_sugestao_que_inventa_fatos(fabrica_servicos, monkeypatch, sugestao, motivo):
+    _, app, _ = painel_melhorar(fabrica_servicos, monkeypatch, sugestao)
+    with TestClient(app, base_url="http://testserver") as c:
+        logar(c)
+        destino = colar(c)
+        r = melhorar(c, destino, "Subi serviços num cluster Kubernetes, 3 deploys por semana")
+        assert motivo in r.text and "Subi serviços num cluster Kubernetes, 3 deploys por semana" in r.text
+        assert "5 deploys" not in r.text and "Terraform e Docker" not in r.text
+
+
+def test_melhorar_exige_texto_e_barra_dados_pessoais(fabrica_servicos, monkeypatch):
+    _, app, prompts = painel_melhorar(fabrica_servicos, monkeypatch, {"texto": "qualquer"})
+    with TestClient(app, base_url="http://testserver") as c:
+        logar(c)
+        destino = colar(c)
+        chamadas = len(prompts)
+        assert "Escreva primeiro" in melhorar(c, destino, "   ").text
+        r = melhorar(c, destino, "Trabalhei na Empresa Exemplo B com Kubernetes")
+        assert "nome de empresa ou dado pessoal" in r.text and "Empresa Exemplo B" in r.text  # texto do usuário preservado
+        assert len(prompts) == chamadas  # nada foi enviado à LLM
+        assert melhorar(c, destino, "x", i="99").status_code == 400
+        assert c.post(f"{destino}/melhorar-texto", data={"i": "0"}).status_code == 403  # sem CSRF
+
+
+def test_formulario_traz_o_botao_melhorar_por_item(web):
+    html = web.get(colar(web)).text
+    assert html.count("Melhorar com a LLM") == 3 and '{"i": "1"}' in html

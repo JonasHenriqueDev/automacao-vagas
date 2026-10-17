@@ -1,0 +1,9 @@
+<div id="bloco_texto_{{ i }}">
+  <label for="texto_{{ i }}">O que você fez com isso? (opcional; vira um bullet na experiência escolhida, com fatos reais)</label>
+  <textarea id="texto_{{ i }}" name="texto_{{ i }}" maxlength="700" style="min-height:60px">{{ texto }}</textarea>
+  <div class="acoes">
+    <button type="button" hx-post="/gerar/{{ vaga_id }}/melhorar-texto" hx-include="closest .lacuna" hx-vals='{"i": "{{ i }}"}'
+            hx-target="#bloco_texto_{{ i }}" hx-swap="outerHTML">Melhorar com a LLM</button>
+    <span class="suave {{ 'ok' if sucesso }}{{ 'erro' if erro }}">{% if mensagem %}{{ mensagem }}{% else %}A LLM só reescreve o que você contou, sem acrescentar fatos; você revisa antes de salvar.{% endif %}</span>
+  </div>
+</div>

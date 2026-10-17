@@ -112,8 +112,7 @@
           <select id="exp_{{ i }}" name="exp_{{ i }}" style="max-width:340px"><option value="">Em nenhuma experiência específica</option>
             {% for e in experiencias %}<option value="{{ e.id }}">{{ e.rotulo }}</option>{% endfor %}</select></div>
       </div>
-      <label for="texto_{{ i }}">O que você fez com isso? (opcional; vira um bullet na experiência escolhida, com fatos reais)</label>
-      <textarea id="texto_{{ i }}" name="texto_{{ i }}" maxlength="700" style="min-height:60px"></textarea>
+      {% with texto='', vaga_id=v.id %}{% include "_texto_lacuna.html" %}{% endwith %}
       <label class="opcao"><input type="checkbox" name="acad_{{ i }}"> só acadêmico/estudo (peso menor no match; não pode ser ligado a uma experiência)</label>
     </div>
   </div>
