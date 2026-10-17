@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from ..curriculo import edicao
 from ..curriculo.mestre import carregar_mestre
-from ..curriculo.personalizar import validar_saida
+from ..curriculo.personalizar import conteudo_completo, validar_saida
 from ..curriculo.render import ErroRender, renderizar
 from .auth import checar_csrf, exigir_login
 from .rotas import avisar, pagina, sv_de, templates, voltar
@@ -55,18 +55,29 @@ async def acao_curriculo(request: Request):
     return voltar(destino)
 
 
-@router.get("/curriculo/previa.pdf")
-def previa(request: Request, idioma: str = "pt"):
-    """CV de exemplo com os itens ATIVOS (sem LLM): mostra como o mestre atual vira PDF."""
+def _pdf_do_mestre(request: Request, idioma: str, completo: bool) -> FileResponse:
+    """PDF sem LLM a partir dos itens ATIVOS do mestre: prévia (enxuta, como um CV de vaga) ou completo."""
     if idioma not in ("pt", "en"):
         raise HTTPException(400, "Idioma inválido.")
     sv = sv_de(request)
     try:
         mestre = carregar_mestre(sv.config.caminho("mestre")).somente_ativos()
-        conteudo = validar_saida({}, mestre, idioma)
-        destino = sv.config.caminho("saida") / f"previa_{idioma}.pdf"
+        conteudo = conteudo_completo(mestre, idioma) if completo else validar_saida({}, mestre, idioma)
+        destino = sv.config.caminho("saida") / f"{'cv_completo' if completo else 'previa'}_{idioma}.pdf"
         renderizar(conteudo, sv.pessoais(), sv.config.caminho("templates_cv"), destino)
     except (FileNotFoundError, ErroRender) as e:
-        raise HTTPException(500, f"Não foi possível gerar a prévia: {e}") from e
+        raise HTTPException(500, f"Não foi possível gerar o PDF: {e}") from e
     return FileResponse(destino, media_type="application/pdf", filename=destino.name,
                         content_disposition_type="inline")
+
+
+@router.get("/curriculo/previa.pdf")
+def previa(request: Request, idioma: str = "pt"):
+    """CV de exemplo com os itens ATIVOS (sem LLM): mostra como o mestre atual vira PDF."""
+    return _pdf_do_mestre(request, idioma, completo=False)
+
+
+@router.get("/curriculo/completo.pdf")
+def completo(request: Request, idioma: str = "pt"):
+    """Currículo completo: tudo o que está ativo no mestre, sem cortes e sem LLM."""
+    return _pdf_do_mestre(request, idioma, completo=True)

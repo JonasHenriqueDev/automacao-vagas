@@ -120,3 +120,23 @@ def test_nenhum_handler_inline_que_a_csp_bloquearia(logado):
         assert not re.search(r"\son(submit|click|change|load)=", html), rota
     js = logado.get("/static/app.js")
     assert js.status_code == 200 and "javascript" in js.headers["content-type"] and "data-confirmar" in js.text
+
+
+def test_cv_completo_traz_tudo_o_que_esta_ativo(logado, painel):
+    from app.curriculo.personalizar import conteudo_completo, validar_saida
+    sv, _ = painel
+    mestre = sv.mestre()
+    completo, previa = conteudo_completo(mestre, "pt"), validar_saida({}, mestre, "pt")
+    assert [e.id for e in completo.experiencias] == [e.id for e in mestre.experiencias]  # monitorias também
+    for exp in completo.experiencias:
+        orig = mestre.experiencia(exp.id)
+        assert [b.origem for b in exp.bullets] == [b.id for b in orig.bullets]
+        assert sorted(exp.tecnologias) == sorted(orig.tecnologias)
+    assert sorted(i for g in completo.skills for i in g.itens) == sorted(
+        f"{s.nome} (acadêmico)" if s.academico else s.nome for s in mestre.skills)
+    assert sum(len(e.bullets) for e in completo.experiencias) >= sum(len(e.bullets) for e in previa.experiencias)
+
+    r = logado.get("/curriculo/completo.pdf?idioma=en")
+    assert r.status_code == 200 and r.content.startswith(b"%PDF")
+    assert logado.get("/curriculo/completo.pdf?idioma=xx").status_code == 400
+    assert 'href="/curriculo/completo.pdf?idioma=pt"' in logado.get("/curriculo").text

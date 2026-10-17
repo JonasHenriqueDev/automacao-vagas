@@ -152,8 +152,10 @@ def _periodo(inicio: str, fim: str | None, idioma: str) -> str:
     return f"{fmt(inicio)} – {fmt(fim) if fim else atual}"
 
 
-def validar_saida(saida: dict, mestre: Mestre, idioma: str) -> ConteudoCV:
-    """Compara a saída da LLM com o mestre; corrige ou descarta o que não existir lá."""
+def validar_saida(saida: dict, mestre: Mestre, idioma: str, sem_limites: bool = False) -> ConteudoCV:
+    """Compara a saída da LLM com o mestre; corrige ou descarta o que não existir lá.
+
+    sem_limites=True (CV completo) não corta bullets por experiência nem tecnologias por experiência."""
     correcoes: list[str] = []
     skills_mestre = mestre.canonicos_skills()
 
@@ -165,7 +167,7 @@ def validar_saida(saida: dict, mestre: Mestre, idioma: str) -> ConteudoCV:
         if proposta is None and exp.tipo not in ("profissional", "bolsa"):
             continue  # monitoria só entra se a LLM a escolheu
         permitidos = taxonomia.com_implicacoes(mestre.canonicos_experiencia(exp))
-        limite = MAX_BULLETS.get(exp.tipo, 3)
+        limite = len(exp.bullets) if sem_limites else MAX_BULLETS.get(exp.tipo, 3)
         finais: list[BulletFinal] = []
         usados: set[str] = set()
         for b in (proposta or {}).get("bullets", []) if proposta else []:
@@ -235,7 +237,7 @@ def validar_saida(saida: dict, mestre: Mestre, idioma: str) -> ConteudoCV:
     ordem = {taxonomia.norm(n): i for i, n in enumerate(escolhidas)}
     for exp_final in exps:
         tecs = sorted(mestre.experiencia(exp_final.id).tecnologias, key=lambda t: ordem.get(taxonomia.norm(t), len(ordem)))  # sorted é estável
-        exp_final.tecnologias = tecs[:MAX_TECNOLOGIAS_EXP]
+        exp_final.tecnologias = tecs if sem_limites else tecs[:MAX_TECNOLOGIAS_EXP]
 
     return ConteudoCV(
         idioma=idioma,
@@ -256,6 +258,17 @@ def validar_saida(saida: dict, mestre: Mestre, idioma: str) -> ConteudoCV:
         idiomas=[i.em(idioma) for i in mestre.idiomas],
         correcoes=correcoes,
     )
+
+
+def conteudo_completo(mestre: Mestre, idioma: str) -> ConteudoCV:
+    """CV sem LLM com tudo o que está ativo no mestre: todas as experiências (monitorias também), todos os
+    bullets com o texto original e todas as skills (as de maior nível primeiro)."""
+    saida = {
+        "experiencias": [{"id": e.id, "bullets": [{"origem": b.id, "texto": b.texto} for b in e.bullets]}
+                         for e in mestre.experiencias],
+        "skills": [s.nome for s in sorted(mestre.skills, key=lambda x: (-x.nivel, x.academico))],
+    }
+    return validar_saida(saida, mestre, idioma, sem_limites=True)
 
 
 # ----------------------------- orquestração -----------------------------
